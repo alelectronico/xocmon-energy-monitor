@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "M3TR",
+			"path": "M3TR"
+		},
+		{
+			"name": "ESP32 tests",
+			"path": "../ESP32 tests"
+		}
+	],
+	"settings": {}
+}

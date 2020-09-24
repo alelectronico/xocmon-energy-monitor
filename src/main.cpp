@@ -5,44 +5,185 @@
 
 //watchdog: https://iotassistant.io/esp32/enable-hardware-watchdog-timer-esp32-arduino-ide/
 
-// SELECT * FROM 'AGRO-PRODUCTION-IoTTopic01'
+//#include "autoconnect_stuff.h"
 #include <WiFiClientSecure.h>
-#include <MQTTClient.h>
-#include <NTPClient.h>
-#include "WiFi.h"
+//#include <MQTTClient.h>
+//#include <NTPClient.h>
+//#include "WiFi.h"
 #include <WiFiUdp.h>
-#include <SPI.h>
-#include <LoRa.h>
-#include <time.h>
-#include <AutoConnect.h>
-#include <WebServer.h>
-#include <ESP32Ping.h>  //to check if there is internet, not only wifi
-#include <esp_task_wdt.h>   //watchdog
+//#include <SPI.h>
+//#include <LoRa.h>
+/////#include <time.h>
+//#include <AutoConnect.h>
+//#include <WebServer.h>
 
-
-WiFiClientSecure client;
 
 
 
 #include "certs.h"
 #include "configs.h"
+#include <autoconnect_stuff.h>
 
-// Config network clients
+
+#include <NTPClient.h> //updatetime
+#include <Arduino.h>
+#if defined(ARDUINO_ARCH_ESP8266)
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#elif defined(ARDUINO_ARCH_ESP32)
+#include <WiFi.h>
+#include <WebServer.h>
+#endif
+#include <time.h>
+#include <AutoConnect.h>
+//#include <AutoConnectDefs.h>
+//#define AC_DEBUG
+
+#include <ESP32Ping.h>  //to check if there is internet, not only wifi
+#include <esp_task_wdt.h>   //watchdog
+
+
+
 WiFiUDP ntpUDP;
 //WiFiClientSecure net = WiFiClientSecure();
 //MQTTClient client = MQTTClient(256);
 NTPClient timeClient(ntpUDP);
 
-// Set message count
-//String tempChar;
-//String sensorId;
-//String payload;
-//String iotPayload;
-int last_time = 0;
-bool sensorIndex = false;
-bool sensorAllowed = false;
 
 
+
+
+static const char AUX_TIMEZONE[] PROGMEM = R"(
+{
+  "title": "TimeZone",
+  "uri": "/timezone",
+  "menu": true,
+  "element": [
+    {
+      "name": "caption",
+      "type": "ACText",
+      "value": "Sets the time zone to get the current local time.",
+      "style": "font-family:Arial;font-weight:bold;text-align:center;margin-bottom:10px;color:DarkSlateBlue"
+    },
+    {
+      "name": "timezone",
+      "type": "ACSelect",
+      "label": "Select TZ name",
+      "option": [],
+      "selected": 10
+    },
+    {
+      "name": "newline",
+      "type": "ACElement",
+      "value": "<br>"
+    },
+    {
+      "name": "start",
+      "type": "ACSubmit",
+      "value": "OK",
+      "uri": "/start"
+    }
+  ]
+}
+)";
+
+typedef struct {
+  const char* zone;
+  const char* ntpServer;
+  int8_t      tzoff;
+} Timezone_t;
+
+static const Timezone_t TZ[] = {
+  { "Europe/London", "europe.pool.ntp.org", 0 },
+  { "Europe/Berlin", "europe.pool.ntp.org", 1 },
+  { "Europe/Helsinki", "europe.pool.ntp.org", 2 },
+  { "Europe/Moscow", "europe.pool.ntp.org", 3 },
+  { "Asia/Dubai", "asia.pool.ntp.org", 4 },
+  { "Asia/Karachi", "asia.pool.ntp.org", 5 },
+  { "Asia/Dhaka", "asia.pool.ntp.org", 6 },
+  { "Asia/Jakarta", "asia.pool.ntp.org", 7 },
+  { "Asia/Manila", "asia.pool.ntp.org", 8 },
+  { "Asia/Tokyo", "asia.pool.ntp.org", 9 },
+  { "Australia/Brisbane", "oceania.pool.ntp.org", 10 },
+  { "Pacific/Noumea", "oceania.pool.ntp.org", 11 },
+  { "Pacific/Auckland", "oceania.pool.ntp.org", 12 },
+  { "Atlantic/Azores", "europe.pool.ntp.org", -1 },
+  { "America/Noronha", "south-america.pool.ntp.org", -2 },
+  { "America/Araguaina", "south-america.pool.ntp.org", -3 },
+  { "America/Blanc-Sablon", "north-america.pool.ntp.org", -4},
+  { "America/New_York", "north-america.pool.ntp.org", -5 },
+  { "America/Chicago", "north-america.pool.ntp.org", -6 },
+  { "America/Denver", "north-america.pool.ntp.org", -7 },
+  { "America/Los_Angeles", "north-america.pool.ntp.org", -8 },
+  { "America/Anchorage", "north-america.pool.ntp.org", -9 },
+  { "Pacific/Honolulu", "north-america.pool.ntp.org", -10 },
+  { "Pacific/Samoa", "oceania.pool.ntp.org", -11 }
+};
+
+#if defined(ARDUINO_ARCH_ESP8266)
+ESP8266WebServer Server;
+#elif defined(ARDUINO_ARCH_ESP32)
+WebServer Server;
+#endif
+
+AutoConnect       Portal(Server);
+AutoConnectConfig Config;       // Enable autoReconnect supported on v0.9.4
+AutoConnectAux    Timezone;
+
+void rootPage() {
+  String  content =
+    "<html>"
+    "<head>"
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+    "<script type=\"text/javascript\">"
+    "setTimeout(\"location.reload()\", 1000);"
+    "</script>"
+    "</head>"
+    "<body>"
+    "<h2 align=\"center\" style=\"color:blue;margin:20px;\">Hello, world</h2>"
+    "<h3 align=\"center\" style=\"color:gray;margin:10px;\">{{DateTime}}</h3>"
+    "<p style=\"text-align:center;\">Reload the page to update the time.</p>"
+    "<p></p><p style=\"padding-top:15px;text-align:center\">" AUTOCONNECT_LINK(COG_24) "</p>"
+    "</body>"
+    "</html>";
+  static const char *wd[7] = { "Sun","Mon","Tue","Wed","Thr","Fri","Sat" };
+  struct tm *tm;
+  time_t  t;
+  char    dateTime[26];
+
+  t = time(NULL);
+  tm = localtime(&t);
+  sprintf(dateTime, "%04d/%02d/%02d(%s) %02d:%02d:%02d.",
+    tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+    wd[tm->tm_wday],
+    tm->tm_hour, tm->tm_min, tm->tm_sec);
+  content.replace("{{DateTime}}", String(dateTime));
+  Server.send(200, "text/html", content);
+}
+
+void startPage() {
+  // Retrieve the value of AutoConnectElement with arg function of WebServer class.
+  // Values are accessible with the element name.
+  String  tz = Server.arg("timezone");
+
+  for (uint8_t n = 0; n < sizeof(TZ) / sizeof(Timezone_t); n++) {
+    String  tzName = String(TZ[n].zone);
+    if (tz.equalsIgnoreCase(tzName)) {
+      configTime(TZ[n].tzoff * 3600, 0, TZ[n].ntpServer);
+      Serial.println("Time zone: " + tz);
+      Serial.println("ntp server: " + String(TZ[n].ntpServer));
+      break;
+    }
+  }
+
+  // The /start page just constitutes timezone,
+  // it redirects to the root page without the content response.
+  Server.sendHeader("Location", String("http://") + Server.client().localIP().toString() + String("/"));
+  Server.send(302, "text/plain", "");
+  Server.client().flush();
+  Server.client().stop();
+}
+//////////------------
 //////////////////////////// TASKS FOR EACH CORE //////////////////////////////////
 TaskHandle_t Task1;
 TaskHandle_t Task2;
@@ -129,79 +270,7 @@ const float A[10][3]=       { //sensor1, input , output           sensor1 = DN20
 
 
 
-#if defined(ARDUINO_ARCH_ESP8266)
-ESP8266WebServer Server;
-#elif defined(ARDUINO_ARCH_ESP32)
-WebServer Server;
-#endif
 
-AutoConnect       Portal(Server);
-//AutoConnectConfig Config;       // Enable autoReconnect supported on v0.9.4
-//AutoConnectAux    Timezone;
-
-AutoConnect  portal;
-AutoConnectConfig config;
-//AutoConnectConfig Config;
-
-
-
-void rootPage() {
-  String  content =
-    "<html>"
-    "<head>"
-    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-    "<script type=\"text/javascript\">"
-    "setTimeout(\"location.reload()\", 1000);"
-    "</script>"
-    "</head>"
-    "<body>"
-    "<h2 align=\"center\" style=\"color:blue;margin:20px;\">Hello, world</h2>"
-    "<h3 align=\"center\" style=\"color:gray;margin:10px;\">{{DateTime}}</h3>"
-    "<p style=\"text-align:center;\">Reload the page to update the time.</p>"
-    "<p></p><p style=\"padding-top:15px;text-align:center\">" AUTOCONNECT_LINK(COG_24) "</p>"
-    "</body>"
-    "</html>";
-  static const char *wd[7] = { "Sun","Mon","Tue","Wed","Thr","Fri","Sat" };
-  struct tm *tm;
-  time_t  t;
-  char    dateTime[26];
-
-  t = time(NULL);
-  tm = localtime(&t);
-  sprintf(dateTime, "%04d/%02d/%02d(%s) %02d:%02d:%02d.",
-    tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
-    wd[tm->tm_wday],
-    tm->tm_hour, tm->tm_min, tm->tm_sec);
-  content.replace("{{DateTime}}", String(dateTime));
-  Server.send(200, "text/html", content);
-}
-
-// void startPage() {
-//   // Retrieve the value of AutoConnectElement with arg function of WebServer class.
-//   // Values are accessible with the element name.
-//   String  tz = Server.arg("timezone");
-
-//   for (uint8_t n = 0; n < sizeof(TZ) / sizeof(Timezone_t); n++) {
-//     String  tzName = String(TZ[n].zone);
-//     if (tz.equalsIgnoreCase(tzName)) {
-//       configTime(TZ[n].tzoff * 3600, 0, TZ[n].ntpServer);
-//       Serial.println("Time zone: " + tz);
-//       Serial.println("ntp server: " + String(TZ[n].ntpServer));
-//       break;
-//     }
-//   }
-
-  // The /start page just constitutes timezone,
-  // it redirects to the root page without the content response.
-  // Server.sendHeader("Location", String("http://") + Server.client().localIP().toString() + String("/"));
-  // Server.send(302, "text/plain", "");
-  // Server.client().flush();
-  // Server.client().stop();
-//}
-
-////////// END AUTO CONNECT CODE ////////
-//AutoConnect  portal;
-//AutoConnectConfig  config;
 
 void updatecurrentTime()
 {
@@ -226,9 +295,97 @@ void updatecurrentTime()
   }
 }
 
-void connectToWiFi()
-{
-  Serial.println("Connect to Wifi");
+
+void APmode(){
+
+  disableCore0WDT();
+  Serial.println("AP mode");
+  Serial.println("Creating portal and trying to connect...");
+
+  Config.immediateStart = true;
+  Config.autoReconnect = true;
+  Config.hostName = "M3TR";
+  Config.portalTimeout = 60000;
+  Config.apid = "M3TR " + String(M3TRid);
+  //Config.apip = 192.168.0.1;
+  Config.retainPortal = false;     //testito
+  Portal.config(Config);
+  esp_task_wdt_reset();
+
+  // Establish a connection with an autoReconnect option.
+  bool acEnable;
+  acEnable = Portal.begin();
+
+  if (acEnable)
+  {
+    Serial.println("WiFi connected: " + WiFi.localIP().toString());
+    Portal.handleClient();
+  }
+
+  if (!acEnable)
+  {
+    Serial.println("portal eeeeeeeeeeeeeeennnnnnnnnnnnnnnnddddddddddddddd");
+    //WiFi.disconnect();
+    delay(100);
+    esp_task_wdt_reset();
+    //connectToWiFi(1);
+    WiFi.mode(WIFI_STA);
+    //WiFi.begin();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.setHostname("M3TR");
+
+    //portal.handleClient();
+  }
+}// end AP mode
+
+
+void connectToWiFi(int x)
+{ 
+  esp_task_wdt_reset();
+  //Serial.println("Connect to Wifi");
+  if (x == 1)
+  {
+    zeit2 = 0;
+    x = 0;
+  }
+
+  if (WiFi.status() == WL_CONNECTED && millis() > zeit2)
+  {
+    Serial.print("pinging.. ");
+    esp_task_wdt_init(20, true); //enable panic so ESP32 restarts
+    esp_task_wdt_add(NULL); //add current thread to WDT watch
+    if (Ping.ping("www.google.com", 2) == 1) //bool ret = Ping.ping("www.google.com",10); //repeticiones
+    {
+      //esp_task_wdt_disable();
+      disableCore0WDT();
+      avg_time_ms = Ping.averageTime();
+      Serial.print(avg_time_ms);
+      zeit2 = 10000 + millis();
+      if (avg_time_ms > 1000)
+      {
+        digitalWrite(ledred, HIGH);
+        digitalWrite(ledgreen, LOW);
+        flagonline = 0;
+      }
+      else
+      {
+        digitalWrite(ledred, LOW);
+        digitalWrite(ledgreen, HIGH);
+        flagonline = 1;
+        Serial.print("updatecurrentTime.. ");
+        updatecurrentTime();
+      }
+    }
+    else
+    {
+      disableCore0WDT();
+      Serial.print("no pong");
+      flagonline = 0;
+      digitalWrite(ledred, HIGH);
+      digitalWrite(ledgreen, LOW);
+    }
+  }
+
   if (WiFi.status() != WL_CONNECTED)
   {
    
@@ -237,9 +394,10 @@ void connectToWiFi()
     digitalWrite(ledgreen, LOW);
     flagonline = 0;
     Serial.print("[INFO]: Start setup to internet connection ");
+    //WiFi.mode(WIFI_STA);
     WiFi.mode(WIFI_STA);
-    //WiFi.mode(WIFI_AP_STA);
 
+    //WiFi.begin();
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     WiFi.setHostname("M3TR");
 
@@ -247,7 +405,13 @@ void connectToWiFi()
     int retries = 30;
     while (WiFi.status() != WL_CONNECTED && retries > 1)
     {
+      Serial.print("wifi reconnecting...");
+
+      //WiFi.setAutoReconnect(true);
+      //WiFi.persistent(true);
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
       esp_task_wdt_reset();
+      WiFi.reconnect();
       delay(1000);
       Serial.print(retries);
       retries--;
@@ -257,11 +421,13 @@ void connectToWiFi()
     {
       flagonline=0;
       Serial.println("[ERROR]: Could not connect to WiFi");
-      //APmode();
+      APmode();
     }
 
     if (WiFi.status() == WL_CONNECTED)
     {
+      WiFi.setAutoReconnect(true);
+      WiFi.persistent(true);
       // bool ret = Ping.ping("www.google.com", 10);
       //float avg_time_ms = Ping.averageTime();
       if (avg_time_ms < 1000)
@@ -291,91 +457,6 @@ void connectToWiFi()
   }
 }
 
-// void connectToWiFisetup()
-// {
-//   if (WiFi.status() != WL_CONNECTED)
-//   {
-//     Serial.println("no wifi ");
-//     digitalWrite(ledred, HIGH);
-//     digitalWrite(ledgreen, LOW);
-//     flagonline = 0;
-//     Serial.print("[INFO]: Start setup to internet connection ");
-//     WiFi.mode(WIFI_STA);
-//     //WiFi.mode(WIFI_AP_STA);
-//     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-//     WiFi.setHostname("M3TR");
-
-//     // Only try 15 times to connect to the WiFi
-//     int retries = 0;
-//     while (WiFi.status() != WL_CONNECTED && retries < 15)
-//     {
-//       delay(1000);
-//       Serial.print("c");
-//       retries++;
-//     }
-
-//     if (WiFi.status() != WL_CONNECTED)
-//     {
-//       Server.on("/", rootPage);
-//       //Serial.println("portal timeout");
-//       config.portalTimeout = 20000;
-//       config.autoReconnect = true;
-
-//       //Serial.println("portal begin");
-//       //Portal.begin();
-
-//       Serial.println("portal config setup");
-//       config.apid = "M3TR";
-//       config.psk = "12345678";
-//       portal.config(config);
-
-//       acEnable = portal.begin();
-//       if (!acEnable)
-//       {
-//         Serial.println("portal eeeeeeeeeeeende setup");
-//         WiFi.mode(WIFI_STA);
-//         WiFi.disconnect();
-//         delay(100);
-//         //portal.end();
-//       }
-
-//       // AutoConnect       Portal;
-//       // AutoConnectConfig Config;
-//       // Config.autoReconnect = true;
-//       // Portal.config(Config);
-//       // Portal.begin();
-
-//       Serial.println("Webserver started:" + WiFi.localIP().toString());
-//     }
-
-//     if (WiFi.status() == WL_CONNECTED)
-//     {
-//       // bool ret = Ping.ping("www.google.com", 10);
-//       //float avg_time_ms = Ping.averageTime();
-//       if (avg_time_ms < 1500)
-//       {
-//         digitalWrite(ledred, LOW);
-//         digitalWrite(ledgreen, HIGH);
-//         Serial.println();
-//         Serial.print("[INFO]: Connected to internet. IP: ");
-//         Serial.print(WiFi.localIP());
-//         Serial.print(", SSID: ");
-//         Serial.print(WiFi.SSID());
-//         Serial.print(", RSSI: ");
-//         Serial.print(WiFi.RSSI());
-//       }
-//       else
-//         (flagonline = 0;)
-//     }
-//   }
-
-//   timeupdate++;
-//   if (timeupdate > 60)
-//   {
-//     updatecurrentTime();
-//     timeupdate = 0;
-//   }
-// }//end wificonnectsetup
 
 void buttoncheck() //if pushbutton pressed for more than x times delay(millis), then clear wifi credentials and launch softAP
 {
@@ -479,7 +560,6 @@ void buttoncheck() //if pushbutton pressed for more than x times delay(millis), 
     }
   }
 }
-
 
 void vbatcheck(){
     vbat=analogRead(lipocheck);
@@ -711,7 +791,8 @@ void sendData(String params)
   //esp_task_wdt_init(10, true); //enable panic so ESP32 restarts
   httpCode = http.GET();
   Serial.println("A VER");
-  esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
+  //esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
+  disableCore0WDT();
   http.end();
   Serial.println("end");
   Serial.println(httpCode);
@@ -842,11 +923,11 @@ void empaquetador(){       //milis          //promedia las mediciones de cada pe
 void Task2code( void * pvParameters ){
   Serial.print("Task2 running on core ");
   Serial.println(xPortGetCoreID());
-  delay(2000);
+  delay(200);
   Serial.println("Configuring WDT core 1...");
-  esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
-  esp_task_wdt_add(NULL); //add current thread to WDT watch
-  esp_task_wdt_reset();
+  //esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
+  //esp_task_wdt_add(NULL); //add current thread to WDT watch
+  //esp_task_wdt_reset();
   for(;;){
     Serial.println("----------core 1-----------");
 
@@ -856,8 +937,7 @@ void Task2code( void * pvParameters ){
     flowread();
     empaquetador();
     buttoncheck();
-    esp_task_wdt_reset();
-    
+    //////esp_task_wdt_reset();
   }
 }
 
@@ -869,13 +949,13 @@ void looppublisher()
 
     if (flagsend == 1)
     {
-      // //carga datos actuales
-      // sendData("Timestamp_Device=" + String(currentTime) + "&device_id=" + String(M3TRid) + "&temp=" + String(flowtemp) + "&flowshort=" + String(flowtotal) + "&flowacum=" + String(flowacum) + "&vbat=" + String(vbat) + "&counterstatus=" + String(counterstatus));
-      // if (httpCode == 302 || httpCode == 200)
-      // {
-      //  // flagsend = 0;   
-      // }
-      // flagsend = 0;
+      //carga datos actuales
+      sendData("Timestamp_Device=" + String(currentTime) + "&device_id=" + String(M3TRid) + "&temp=" + String(flowtemp) + "&flowshort=" + String(flowtotal) + "&flowacum=" + String(flowacum) + "&vbat=" + String(vbat) + "&counterstatus=" + String(counterstatus));
+      if (httpCode == 302 || httpCode == 200)
+      {
+       // flagsend = 0;   
+      }
+      flagsend = 0;
     }
     else
     {
@@ -896,10 +976,7 @@ void looppublisher()
         float counterstatusbkp = payloadbag[x][4];
 
         x++;
-
-
         sendData("Timestamp_Device=" + String(currentTimebkp) + "&device_id=" + String(M3TRid) + "&temp=" + String(flowtempbkp) + "&flowshort=" + String(flowtotal) + "&flowacum=" + String(flowacumbkp) + "&vbat=" + String(vbatbkp) + "&counterstatus=" + String(counterstatusbkp));
-
         if (httpCode == 302 || httpCode == 200)
         {
           //flowtotal = 0;          //reintenta
@@ -913,8 +990,6 @@ void looppublisher()
         //payloadbag[x][5] = 0;     //voy a probar que solo lo intente una vez aunque no reciba confirmacion...
         //x++;
         }
-      
-
         digitalWrite(ledred, LOW);
         digitalWrite(ledgreen, HIGH);
       }
@@ -950,8 +1025,18 @@ void setup()                                                                    
 {
 
   Serial.begin(9600);
-  Serial.print("\n\n");
   delay(1000);
+  Serial.print("\n\n");
+
+  Serial.println("Bienvenido a M3TR!");
+
+
+
+  
+
+
+
+  delay(100);
   Serial.println("-----------SETUP-----------");
   pinMode(flowpin,INPUT_PULLUP);
   pinMode(flowled,OUTPUT);
@@ -966,13 +1051,11 @@ void setup()                                                                    
 
   digitalWrite(ledred,LOW);
   digitalWrite(ledgreen,HIGH);
-  delay(3000);
+  delay(300);
   digitalWrite(ledred,HIGH);
   digitalWrite(ledgreen,LOW);
-  delay(3000);
+  delay(300);
   Serial.println("Configuring WDT core 0...");
-  esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
-  esp_task_wdt_add(NULL); //add current thread to WDT watch
 
 
 /*
@@ -995,6 +1078,7 @@ void setup()                                                                    
   // delay(500); 
 
   //create a task that will be executed in the Task2code() function, with priority 1 and executed on core 1
+  Serial.println("Configuring Task2Core...");
   xTaskCreatePinnedToCore(
                     Task2code,   /* Task function. */
                     "Task2",     /* name of task. */
@@ -1006,128 +1090,85 @@ void setup()                                                                    
     delay(500); 
 
     
-
-  connectToWiFi();
-  delay(1000);
+  delay(100);
   esp_task_wdt_reset();
 
+ 
+  //connectToWiFi(0);
+  Serial.println("");
+
+  //connectToAWS();
+  delay(50);
+
+  //initLora(); 
+  delay(50);
+
+  
+
+
+  // Enable saved past credential by autoReconnect option,
+  // even once it is disconnected.
+  Config.immediateStart = true;
+  Config.autoReconnect = true;
+  //Config.hostName = "M3TR";
+  Config.portalTimeout = 60000;
+  Config.apid = "M3TR " + String(M3TRid);
+  //Config.apip = 192.168.0.1;
+  Config.retainPortal = false;     //testito
+
+
+  
+  Portal.config(Config);
+
+  // Load aux. page
+  Timezone.load(AUX_TIMEZONE);
+  // Retrieve the select element that holds the time zone code and
+  // register the zone mnemonic in advance.
+  AutoConnectSelect&  tz = Timezone["timezone"].as<AutoConnectSelect>();
+  for (uint8_t n = 0; n < sizeof(TZ) / sizeof(Timezone_t); n++) {
+    tz.add(String(TZ[n].zone));
+  }
+
+  Portal.join({ Timezone });        // Register aux. page
+
+  // Behavior a root path of ESP8266WebServer.
+  Server.on("/", rootPage);
+  Server.on("/start", startPage);   // Set NTP server trigger handler
+
+  //esp_task_wdt_init(20, true); //enable panic so ESP32 restarts
+  //esp_task_wdt_add(NULL); //add current thread to WDT watch
+  
+  //WiFi.begin(); 
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD); 
+  esp_task_wdt_reset();
+
+  connectToWiFi(1);
+  //if (WiFi.status() != WL_CONNECTED){
+  //  autoconnect_stuff();
+  //}
+
+  
+  Serial.println("Configurando timeClient...");
   timeClient.begin();
   timeClient.setTimeOffset(0);
   timeClient.update();
   Serial.print(timeClient.getEpochTime());
 
-  //connectToAWS();
-  delay(500);
 
-  //initLora();
-  delay(500);
-
-  esp_task_wdt_reset();
 
 } //end setup
 
 void loop()
 {
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    digitalWrite(ledred,HIGH);
-    digitalWrite(ledgreen,LOW);
-    flagonline = 0;
-    //Serial.print("                               loop: no wifi ");
-    Serial.print(i);
-
-    if (i == 10)
-    {
-      connectToWiFi();
-    }
-    if (i > 20)
-    {
-      //config.autoRise=false;
-
-      //i=0;
-      config.immediateStart = true;
-      config.portalTimeout = 60000;
-      config.autoReconnect = true;
-      config.retainPortal = true;
-
-      //WiFi.mode(WIFI_AP_STA);
-
-      Serial.println("portal config loop");
-      config.apid = "M3TR";
-      config.psk = "12345678";
-      portal.config(config);
-      Serial.println("portal begin loop");
-      //Portal.begin();
-      esp_task_wdt_init(65, true); //enable panic so ESP32 restarts
-      acEnable = portal.begin();
-      if (!acEnable)
-      {
-        Serial.println("portal eeeeeeeeeeeeeeennnnnnnnnnnnnnnnddddddddddddddd1");
-        WiFi.disconnect();
-        delay(100);
-        connectToWiFi();
-      }
-      esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
-    }
-    i++;
-    delay(100);
-    if (i > 30)
-    {
-      i = 0;
-    }
-  }
-
-  if (WiFi.status() == WL_CONNECTED && millis() > zeit2)
-  {
-    Serial.print("pinging.. ");
-    esp_task_wdt_init(10, true); //enable panic so ESP32 restarts
-    if (Ping.ping("www.google.com",1) == 1) //bool ret = Ping.ping("www.google.com",10); //repeticiones
-    { 
-      esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
-      avg_time_ms = Ping.averageTime();
-      esp_task_wdt_reset();
-      Serial.print("ping: ");
-      Serial.println(avg_time_ms);
-      zeit2 = 10000 + millis();
-      if (avg_time_ms > 1000)
-      {
-        digitalWrite(ledred, HIGH);
-        digitalWrite(ledgreen, LOW);
-        flagonline = 0;
-      }
-      else
-      {
-        digitalWrite(ledred, LOW);
-        digitalWrite(ledgreen, HIGH);
-        flagonline = 1;
-        Serial.print("updatecurrentTime.. ");
-        updatecurrentTime();
-      }
-      
-    }
-    else
-    {
-      esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
-      avg_time_ms = 1001;
-      flagonline = 0;
-      digitalWrite(ledred, HIGH);
-      digitalWrite(ledgreen, LOW);
-      zeit2 = 10000 + millis();
-    }
-  }
-
+  //Serial.print(".");
+  connectToWiFi(0);
   if (flagonline == 1)
   {
     looppublisher();
   }
-
-  if (acEnable)
-  {
-    Serial.println("portal handleClient");
-    portal.handleClient();
-  }
   esp_task_wdt_reset();
-  delay(100);
+  delay(300);
+  Portal.handleClient();
 } //end loop
 
 //OTA
@@ -1135,6 +1176,4 @@ void loop()
 //publicar a google usando mqtt?
 
 //problema1: publicar tarda mas de 8 segundos por mensaje...
-
-
 

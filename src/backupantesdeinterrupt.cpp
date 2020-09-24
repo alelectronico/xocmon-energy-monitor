@@ -6,6 +6,7 @@
 // //watchdog: https://iotassistant.io/esp32/enable-hardware-watchdog-timer-esp32-arduino-ide/
 
 // // SELECT * FROM 'AGRO-PRODUCTION-IoTTopic01'
+// #include "autoconnect_stuff.h"
 // #include <WiFiClientSecure.h>
 // #include <MQTTClient.h>
 // #include <NTPClient.h>
@@ -17,7 +18,24 @@
 // #include <AutoConnect.h>
 // #include <WebServer.h>
 // #include <ESP32Ping.h>  //to check if there is internet, not only wifi
-// #include <esp_task_wdt.h>
+// #include <esp_task_wdt.h>   //watchdog
+
+// #if defined(ARDUINO_ARCH_ESP8266)
+// ESP8266WebServer Server;
+// #elif defined(ARDUINO_ARCH_ESP32)
+// WebServer Server;
+// #endif
+
+
+// AutoConnect       Portal(Server);
+// //AutoConnectConfig Config;       // Enable autoReconnect supported on v0.9.4
+// //AutoConnectAux    Timezone;
+
+// AutoConnect  portal;
+// AutoConnectConfig config;
+// //AutoConnectConfig Config;
+
+
 
 
 // WiFiClientSecure client;
@@ -129,22 +147,6 @@
 
 
 
-// #if defined(ARDUINO_ARCH_ESP8266)
-// ESP8266WebServer Server;
-// #elif defined(ARDUINO_ARCH_ESP32)
-// WebServer Server;
-// #endif
-
-// AutoConnect       Portal(Server);
-// //AutoConnectConfig Config;       // Enable autoReconnect supported on v0.9.4
-// //AutoConnectAux    Timezone;
-
-// AutoConnect  portal;
-// AutoConnectConfig config;
-// //AutoConnectConfig Config;
-
-
-
 // void rootPage() {
 //   String  content =
 //     "<html>"
@@ -202,6 +204,9 @@
 // ////////// END AUTO CONNECT CODE ////////
 // //AutoConnect  portal;
 // //AutoConnectConfig  config;
+
+
+
 
 // void updatecurrentTime()
 // {
@@ -318,9 +323,7 @@
 // //     {
 // //       Server.on("/", rootPage);
 // //       //Serial.println("portal timeout");
-// //       config.portalTimeout = 20000;
-// //       config.autoReconnect = true;
-
+// //    
 // //       //Serial.println("portal begin");
 // //       //Portal.begin();
 
@@ -479,7 +482,6 @@
 //     }
 //   }
 // }
-
 
 // void vbatcheck(){
 //     vbat=analogRead(lipocheck);
@@ -896,10 +898,7 @@
 //         float counterstatusbkp = payloadbag[x][4];
 
 //         x++;
-
-
 //         sendData("Timestamp_Device=" + String(currentTimebkp) + "&device_id=" + String(M3TRid) + "&temp=" + String(flowtempbkp) + "&flowshort=" + String(flowtotal) + "&flowacum=" + String(flowacumbkp) + "&vbat=" + String(vbatbkp) + "&counterstatus=" + String(counterstatusbkp));
-
 //         if (httpCode == 302 || httpCode == 200)
 //         {
 //           //flowtotal = 0;          //reintenta
@@ -913,8 +912,6 @@
 //         //payloadbag[x][5] = 0;     //voy a probar que solo lo intente una vez aunque no reciba confirmacion...
 //         //x++;
 //         }
-      
-
 //         digitalWrite(ledred, LOW);
 //         digitalWrite(ledgreen, HIGH);
 //       }
@@ -1048,17 +1045,18 @@
 //       config.immediateStart = true;
 //       config.portalTimeout = 60000;
 //       config.autoReconnect = true;
-//       config.retainPortal = true;
-
-//       //WiFi.mode(WIFI_AP_STA);
+//       config.retainPortal = true;//testito
+      
+//       Serial.println("WIFI_AP_STA");
+//       WiFi.mode(WIFI_AP_STA);
 
 //       Serial.println("portal config loop");
-//       config.apid = "M3TR";
+//       config.apid = "M3TR2";
 //       config.psk = "12345678";
 //       portal.config(config);
 //       Serial.println("portal begin loop");
 //       //Portal.begin();
-//       esp_task_wdt_init(65, true); //enable panic so ESP32 restarts
+//       esp_task_wdt_init(75, true); //enable panic so ESP32 restarts
 //       acEnable = portal.begin();
 //       if (!acEnable)
 //       {
@@ -1081,7 +1079,7 @@
 //   {
 //     Serial.print("pinging.. ");
 //     esp_task_wdt_init(10, true); //enable panic so ESP32 restarts
-//     if (Ping.ping("www.google.com",1) == 1) //bool ret = Ping.ping("www.google.com",10); //repeticiones
+//     if (Ping.ping("www.google.com",2) == 1) //bool ret = Ping.ping("www.google.com",10); //repeticiones
 //     { 
 //       esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
 //       avg_time_ms = Ping.averageTime();
@@ -1103,7 +1101,6 @@
 //         Serial.print("updatecurrentTime.. ");
 //         updatecurrentTime();
 //       }
-      
 //     }
 //     else
 //     {
@@ -1127,7 +1124,7 @@
 //     portal.handleClient();
 //   }
 //   esp_task_wdt_reset();
-//   delay(100);
+//   delay(300);
 // } //end loop
 
 // //OTA
@@ -1136,11 +1133,5 @@
 
 // //problema1: publicar tarda mas de 8 segundos por mensaje...
 
-// //revisar por que manda datos del backup que tiene contador totalmente fuera del rango
-// //cuando esta sin luz sleep ESP y que se despuerte por: 1 flow, 2 bot, 3 tiempo
 
 
-// //looppublisher necesita arreglar lo de 0++ y x++ porque es un desmadere
-// //por aguna razon deja de mandar hits pero no esta trabado, se necesita buscar mas a fondo
-
-// //ahora si se trBO LA PENDEJADA

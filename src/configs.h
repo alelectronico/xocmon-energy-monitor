@@ -6,11 +6,13 @@
 //String GOOGLE_SCRIPT_ID = "AKfycbyZuLmLX83geo0c0nQnzlz3w-uQtoSzJZZNBtQ7vGNWw62HEhAx"; // sheet: pupu2 
 //String GOOGLE_SCRIPT_ID = "AKfycbwKJ4eFVA7c7tfNMuVmW7criLQvSzuioWzPl05NjJLABL6l0W79"; // m001 Replace by your GAS service id
 //String GOOGLE_SCRIPT_ID = "AKfycbwvHLFtKlmxn1JLKSxQUXQtdGqMFZi6u8bgFvPCfZ_WAnRFYIVL"; // id:1 sheet:pupu 
+String GOOGLE_SCRIPT_ID = "AKfycbz7PZjFy7pxur9boSm50U3tCV5JKOieMUfiJDPS"; // 02
+
 //String GOOGLE_SCRIPT_ID = "AKfycbydrQCU67gRJiyRCfhZBjQmjzSCFpmc5nGzjDBE"; //id:3 sheet 03
-String GOOGLE_SCRIPT_ID = "AKfycbxZCbWVgx4cfmQ-cR0cVU6uUWT1yoOyShJTtqArcPNjZTbVY6E"; //04
+//String GOOGLE_SCRIPT_ID = "AKfycbxZCbWVgx4cfmQ-cR0cVU6uUWT1yoOyShJTtqArcPNjZTbVY6E"; //04
 //String GOOGLE_SCRIPT_ID = "AKfycbzphLuRdrU4BjnvHl4kYuuMkAB059wXw0wQ2yoZTw"; //05
 
-const float M3TRid = 4.02;
+const float M3TRid = 2.03;
 //local AP url: http://172.217.28.1/_ac/
 
 //////////////////// Default Wifi credentials ///////////////////////////
@@ -56,6 +58,8 @@ const char * WIFI_PASSWORD = "chipotle";
 //versiones:
 //01 no existe
 //02 version base que incluye offline basico, upload, autoconnect que NO sirve
-//03 se agrega un segundo intento a senddata en caso de que no reciba un 200 o un 302 (para casos donde la wifi es debil)
+//03 se agrega un segundo intento a senddata en caso de que no reciba un 200 o un 302 o lo guarda en backup (para casos donde la wifi es debil) FALTA probar
+//   se agrega railenable para apagar el sensor cuando no hay luz y la bateria esta baja
+//04 se agrega OTA (falta particionar)
 
 

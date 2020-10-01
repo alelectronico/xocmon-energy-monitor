@@ -440,6 +440,10 @@ void connectToWiFi(int x)
       {
         digitalWrite(ledred, LOW);
         digitalWrite(ledgreen, HIGH);
+
+        if (flagonline==0){
+          publishnow=0;//si antes estaba offline publica de una vez
+        }
         flagonline = 1;
         Serial.print("updatecurrentTime.. ");
         updatecurrentTime();
@@ -905,6 +909,19 @@ void sendData(String params)
   }
   
   flowtotal = 0;
+
+  if (httpCode == 302 || httpCode == 200)
+  {
+   // flowtotal = 0; //reset flowshort (flowtotal) para que pueda ir contando nuevamente mientras google responde
+  }
+  else
+  {
+    flagonline=0;
+    counterstatus--;
+    onlinecheck3();
+  }
+
+
   if (httpCode == -1)
   {
    

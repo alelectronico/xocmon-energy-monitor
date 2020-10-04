@@ -1,0 +1,10 @@
+# Custom partition table
+# http://programmersought.com/article/52611782186/;jsessionid=FCA469771CE32CDFA1FDA98DEA8AECB7
+# Name,   Type, SubType, Offset, Size, Flags
+nvs,      data, nvs,     ,       0x4000,
+otadata,  data, ota,     ,       0x2000,
+phy_init, data, phy,     ,       0x1000,
+factory,  app,  factory, ,       1200K, 
+ota_0,    app,  ota_0,   ,       1200K,
+ota_1,    app,  ota_1,   ,       1200K,
+#spiffs,  data, spiffs,   ,      5M

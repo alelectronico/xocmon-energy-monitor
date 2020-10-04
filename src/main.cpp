@@ -22,7 +22,7 @@
 
 #include "certs.h"
 #include "configs.h"
-#include <autoconnect_stuff.h>
+//#include <autoconnect_stuff.h>
 
 
 #include <NTPClient.h> //updatetime
@@ -36,12 +36,13 @@
 #endif
 #include <time.h>
 #include <AutoConnect.h>
-#include <OTAClient.h>
+#include "helpers/OTAClient.h"
+OTAClient OTA;
 
 
 
 #include <ESP32Ping.h>  //to check if there is internet, not only wifi
-#include <esp_task_wdt.h>   //watchdog
+//#include <esp_task_wdt.h>   //watchdog
 
 #include <EEPROM.h>   //para guardar la fecha si se traba
 #define EEPROM_SIZE 10
@@ -98,30 +99,11 @@ typedef struct {
 } Timezone_t;
 
 static const Timezone_t TZ[] = {
-  { "Europe/London", "europe.pool.ntp.org", 0 },
-  { "Europe/Berlin", "europe.pool.ntp.org", 1 },
-  { "Europe/Helsinki", "europe.pool.ntp.org", 2 },
-  { "Europe/Moscow", "europe.pool.ntp.org", 3 },
-  { "Asia/Dubai", "asia.pool.ntp.org", 4 },
-  { "Asia/Karachi", "asia.pool.ntp.org", 5 },
-  { "Asia/Dhaka", "asia.pool.ntp.org", 6 },
-  { "Asia/Jakarta", "asia.pool.ntp.org", 7 },
-  { "Asia/Manila", "asia.pool.ntp.org", 8 },
-  { "Asia/Tokyo", "asia.pool.ntp.org", 9 },
-  { "Australia/Brisbane", "oceania.pool.ntp.org", 10 },
-  { "Pacific/Noumea", "oceania.pool.ntp.org", 11 },
-  { "Pacific/Auckland", "oceania.pool.ntp.org", 12 },
-  { "Atlantic/Azores", "europe.pool.ntp.org", -1 },
-  { "America/Noronha", "south-america.pool.ntp.org", -2 },
-  { "America/Araguaina", "south-america.pool.ntp.org", -3 },
-  { "America/Blanc-Sablon", "north-america.pool.ntp.org", -4},
-  { "America/New_York", "north-america.pool.ntp.org", -5 },
+ 
+ 
   { "America/Chicago", "north-america.pool.ntp.org", -6 },
   { "America/Denver", "north-america.pool.ntp.org", -7 },
-  { "America/Los_Angeles", "north-america.pool.ntp.org", -8 },
-  { "America/Anchorage", "north-america.pool.ntp.org", -9 },
-  { "Pacific/Honolulu", "north-america.pool.ntp.org", -10 },
-  { "Pacific/Samoa", "oceania.pool.ntp.org", -11 }
+
 };
 
 #if defined(ARDUINO_ARCH_ESP8266)
@@ -254,7 +236,8 @@ long zeit2=0;
 int avg_time_ms;
 
 unsigned long timer = 0; //para hacer currentTime backup en eeprom cada hora
-
+unsigned long timerOTA = 0; //para checar si hay actualizacion (cada 60 seg)
+unsigned long timerReset = 0; //para checar si hay actualizacion (cada 60 seg)
 
 int i=0;//temp
 bool acEnable;
@@ -282,15 +265,15 @@ const float A[10][3]=       { //sensor1, input , output           sensor1 = DN20
 void updatecurrentTime()
 {
 
-Serial.println("updatecurrentTime::::::");
+Serial.print("updatecurrentTime: ");
 
 //EEPROM.read(0);//leer
 
 //EEPROM.write(0, ledState);
 //EEPROM.commit();
 
-  Serial.print("timebackup=");Serial.println(timebackup);
-  Serial.print("currentTime=");Serial.println(currentTime);
+  //Serial.print("timebackup=");Serial.println(timebackup);
+  Serial.println(currentTime);
 
 
   timeClient.begin();
@@ -307,8 +290,8 @@ Serial.println("updatecurrentTime::::::");
   //   timeClient.end();
   // }
 
-  Serial.print("currentTime: Time.now: ");
-  Serial.println(currentTime); //rtc.nowEpoch();
+ // Serial.print("currentTime: Time.now: ");
+  //Serial.println(currentTime); //rtc.nowEpoch();
   if (1600000000 < currentTime && currentTime < 2000000000)
   {
     backupcurrentTime = currentTime;
@@ -393,15 +376,15 @@ void APmode(){
 
   if (!acEnable)
   {
-    Serial.println("portal eeeeeeeeeeeeeeennnnnnnnnnnnnnnnddddddddddddddd");
+    Serial.println("portal eeeeeennnnnnddddd");
     //WiFi.disconnect();
     delay(100);
     //esp_task_wdt_reset();
     //connectToWiFi(1);
     WiFi.mode(WIFI_STA);
-    WiFi.begin();
-    //WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    WiFi.setHostname("M3TR2.03");
+    //WiFi.begin();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+   // WiFi.setHostname("M3TR");
 
     //portal.handleClient();
   }
@@ -442,7 +425,7 @@ void connectToWiFi(int x)
         digitalWrite(ledgreen, HIGH);
 
         if (flagonline==0){
-          publishnow=0;//si antes estaba offline publica de una vez
+         // publishnow=0;//si antes estaba offline publica de una vez
         }
         flagonline = 1;
         Serial.print("updatecurrentTime.. ");
@@ -461,18 +444,21 @@ void connectToWiFi(int x)
 
   if (WiFi.status() != WL_CONNECTED)
   {
-   
+    //WiFi.mode( WIFI_MODE_NULL );
+    WiFi.disconnect();
+    delay(100);
     Serial.println("no wifi ");
     digitalWrite(ledred, HIGH);
     digitalWrite(ledgreen, LOW);
     flagonline = 0;
     Serial.print("[INFO]: Start setup to internet connection ");
     //WiFi.mode(WIFI_STA);
+    WiFi.setHostname("M3TR");
     WiFi.mode(WIFI_STA);
 
     WiFi.begin();
     //WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    WiFi.setHostname("M3TR2.03");
+   
 
     // Only try 30 times to connect to the WiFi
     int retries = 30;
@@ -874,59 +860,80 @@ void sendData(String params)
   http.begin(url, root_ca); //Specify the URL and certificate
   Serial.print("http.get:");
   //esp_task_wdt_init(20, true); //enable panic so ESP32 restarts}
-
   //hacer un timer manual, si pasan mas de unos 20 seg haz backup de currenttimer 
-
-
   //esp_task_wdt_init(10, true); //enable panic so ESP32 restarts
   httpCode = http.GET();
-  Serial.println("A VER");
+  Serial.print (" DONE");
   //esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
   //disableCore0WDT();
   http.end();
-  Serial.println("end");
-  Serial.println(httpCode);
-  Serial.println("sent");
+  Serial.print(" with reply: ");
+  Serial.println (httpCode);
   
-  if (httpCode == 302 || httpCode == 200)
+  
+  // if (httpCode == 302 || httpCode == 200)
+  // {
+  //  // flowtotal = 0; //reset flowshort (flowtotal) para que pueda ir contando nuevamente mientras google responde
+  // }
+  // else
+  // {
+  // Serial.print(url);
+  // Serial.print("sending same message agaiin...");
+  // http.begin(url, root_ca); //Specify the URL and certificate
+  // Serial.print("http.get:");
+  // //esp_task_wdt_init(20, true); //enable panic so ESP32 restarts}
+  // //hacer un timer manual, si pasan mas de unos 20 seg haz backup de currenttimer 
+  // //esp_task_wdt_init(10, true); //enable panic so ESP32 restarts
+  // httpCode = http.GET();
+  // Serial.println("A VER");
+  // //esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
+  // //disableCore0WDT();
+  // http.end();
+  // }
+  
+  
+  if (httpCode == 302 || httpCode == 200 || httpCode == -11)
   {
    // flowtotal = 0; //reset flowshort (flowtotal) para que pueda ir contando nuevamente mientras google responde
   }
   else
   {
+    //flagonline=0;
+    //counterstatus--;
+   // onlinecheck3();
+  Serial.println("sendData sending again...");
+  HTTPClient http;
+  String url = "https://script.google.com/macros/s/" + GOOGLE_SCRIPT_ID + "/exec?" + params;
+
   Serial.print(url);
-  Serial.print("sending same message again...");
+  Serial.print("Making a request");
   http.begin(url, root_ca); //Specify the URL and certificate
   Serial.print("http.get:");
   //esp_task_wdt_init(20, true); //enable panic so ESP32 restarts}
   //hacer un timer manual, si pasan mas de unos 20 seg haz backup de currenttimer 
   //esp_task_wdt_init(10, true); //enable panic so ESP32 restarts
   httpCode = http.GET();
-  Serial.println("A VER");
+  Serial.print (" DONE");
   //esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
   //disableCore0WDT();
   http.end();
+  Serial.print(" with reply: ");
+  Serial.println (httpCode);
   }
-  
-  flowtotal = 0;
 
-  if (httpCode == 302 || httpCode == 200)
+  if (httpCode == 302 || httpCode == 200 || httpCode == -11)
   {
-   // flowtotal = 0; //reset flowshort (flowtotal) para que pueda ir contando nuevamente mientras google responde
+    // flowtotal = 0; //reset flowshort (flowtotal) para que pueda ir contando nuevamente mientras google responde
   }
   else
   {
-    flagonline=0;
+    flagonline = 0;
     counterstatus--;
     onlinecheck3();
   }
 
-
-  if (httpCode == -1)
-  {
-   
-  }
-}
+  flowtotal = 0;
+}//end senddata
 
 void publicador()
 {
@@ -1042,15 +1049,13 @@ void empaquetador(){       //milis          //promedia las mediciones de cada pe
 void Task2code( void * pvParameters ){
   Serial.print("Task2 running on core ");
   Serial.println(xPortGetCoreID());
-  delay(200);
+  delay(3000);
   Serial.println("Configuring WDT core 1...");
   //esp_task_wdt_init(3, true); //enable panic so ESP32 restarts
   //esp_task_wdt_add(NULL); //add current thread to WDT watch
   //esp_task_wdt_reset();
   for(;;){
     Serial.println("----------core 1-----------");
-
-    Serial.println("_");
     vbatcheck();
     zeit=millis();                  //timer para guardar dato o publicar
     flowread();
@@ -1143,11 +1148,26 @@ void looppublisher()
 void railcheck()
 {
   vbat=analogRead(lipocheck);
-  vbat=vbat*4/2267;           //from raw to volts
+  vbat=vbat*4/2100;           //from raw to volts, antes 2267
   if (vbat > 3.6)
   {
     digitalWrite(railEnable, LOW); //LOW=ON
   }
+}
+
+
+void OTAcheck(){
+  ///////////////////////////////////////// ota //////////////////////////////////////////
+int x=M3TRver;
+Serial.println("OTA ___ M3TR ID: " + String(M3TR_unique_id)+" , version: "+  String(x));
+
+//String bin = "/firmware" + String(version + 1) + ".bin";
+String bin = "/firmware" + String(M3TR_unique_id) +"."+  String(x + 1) + ".bin";
+Serial.print("Looking for version: ");
+Serial.println(String(x + 1) +"on firmware: "+ bin);
+
+//OTA.update("/G0_firmware_v1.3.bin");
+OTA.update(bin);
 }
 
 void setup()                                                                      /////////////////    SETUP    ///////////////////
@@ -1156,14 +1176,9 @@ void setup()                                                                    
   Serial.begin(9600);
   delay(1000);
   Serial.print("\n\n");
-
   Serial.println("Bienvenido a M3TR!");
 
   EEPROM.begin(EEPROM_SIZE);
-
-  
-
-
 
   delay(100);
   Serial.println("-----------SETUP-----------");
@@ -1220,11 +1235,9 @@ void setup()                                                                    
                     1);          /* pin task to core 1 */
     delay(500); 
 
-    
   delay(100);
   //esp_task_wdt_reset();
 
- 
   //connectToWiFi(0);
   Serial.println("");
 
@@ -1233,9 +1246,6 @@ void setup()                                                                    
 
   //initLora(); 
   delay(50);
-
-  
-
 
   // Enable saved past credential by autoReconnect option,
   // even once it is disconnected.
@@ -1250,18 +1260,18 @@ void setup()                                                                    
 
   
   Portal.config(Config);
+///////---------
+  // // Load aux. page
+  // Timezone.load(AUX_TIMEZONE);
+  // // Retrieve the select element that holds the time zone code and
+  // // register the zone mnemonic in advance.
+  // AutoConnectSelect&  tz = Timezone["timezone"].as<AutoConnectSelect>();
+  // for (uint8_t n = 0; n < sizeof(TZ) / sizeof(Timezone_t); n++) {
+  //   tz.add(String(TZ[n].zone));
+  // }
 
-  // Load aux. page
-  Timezone.load(AUX_TIMEZONE);
-  // Retrieve the select element that holds the time zone code and
-  // register the zone mnemonic in advance.
-  AutoConnectSelect&  tz = Timezone["timezone"].as<AutoConnectSelect>();
-  for (uint8_t n = 0; n < sizeof(TZ) / sizeof(Timezone_t); n++) {
-    tz.add(String(TZ[n].zone));
-  }
-
-  Portal.join({ Timezone });        // Register aux. page
-
+  // Portal.join({ Timezone });        // Register aux. page
+//////////------
   // Behavior a root path of ESP8266WebServer.
   Server.on("/", rootPage);
   Server.on("/start", startPage);   // Set NTP server trigger handler
@@ -1271,8 +1281,18 @@ void setup()                                                                    
   
 
   Serial.println("wifi begin setup");
-  //WiFi.begin(); 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD); delay(3000);
+  //WiFi.begin();
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  for (int a = 30; a > 0; a--)
+  {
+    digitalWrite(ledred, LOW);
+    digitalWrite(ledgreen, HIGH);
+    delay(100);
+    digitalWrite(ledred, LOW);
+    digitalWrite(ledgreen, LOW);
+    delay(100);
+  }
   //esp_task_wdt_reset();
 
   connectToWiFi(1);
@@ -1290,6 +1310,9 @@ void setup()                                                                    
 
 railcheck();
 
+//OTAcheck();
+
+
 } //end setup
 
 void loop()
@@ -1300,14 +1323,26 @@ void loop()
   {
     looppublisher();
   }
-
-
   
   if (millis() > timer)
   {
-    timer = 3600000 + millis();
+    timer = 2*3600000 + millis(); //cada 2 horas
     timebackup = 1;
   }
+
+  if (millis() > timerOTA)
+  {
+    timerOTA = 180000 + millis(); //cada 3 min
+    OTAcheck();
+  }
+
+  // if (millis() > timerReset)
+  // {
+  //   timerReset = 4*3600000 + millis(); //4horas
+  //   timebackup=1;
+  //   updatecurrentTime();
+  //   ESP.restart();
+  // }
 
   //esp_task_wdt_reset();
   delay(300);
@@ -1315,10 +1350,8 @@ void loop()
 } //end loop
 
 //OTA
-//retained
-//publicar a google usando mqtt?
 
 //problema1: publicar tarda mas de 8 segundos por mensaje...
-//reintentar mensaje si no recibe un 200 o 302, al menos una vez
 
 
+//esptool.py  --port /dev/cu.SLAB_USBtoUART erase_flash

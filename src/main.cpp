@@ -627,6 +627,8 @@ void buttoncheck() //if pushbutton pressed for more than x times delay(millis), 
 }
 
 void vbatcheck(){
+    digitalWrite(railEnable, HIGH); //LOW=ON
+    delay(20);
     vbat=analogRead(lipocheck);
     vbat=vbat*4/2267;           //from raw to volts
     
@@ -1147,6 +1149,8 @@ void looppublisher()
 
 void railcheck()
 {
+  digitalWrite(railEnable, HIGH); //LOW=ON
+  delay(20);
   vbat=analogRead(lipocheck);
   vbat=vbat*4/2100;           //from raw to volts, antes 2267
   if (vbat > 3.6)

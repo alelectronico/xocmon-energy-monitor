@@ -5,13 +5,12 @@
  #include <HTTPClient.h>
 //String GOOGLE_SCRIPT_ID = "AKfycbyZuLmLX83geo0c0nQnzlz3w-uQtoSzJZZNBtQ7vGNWw62HEhAx"; // sheet: pupu2 
 //String GOOGLE_SCRIPT_ID = "AKfycbwKJ4eFVA7c7tfNMuVmW7criLQvSzuioWzPl05NjJLABL6l0W79"; // m001 Replace by your GAS service id
-String GOOGLE_SCRIPT_ID = "AKfycbwvHLFtKlmxn1JLKSxQUXQtdGqMFZi6u8bgFvPCfZ_WAnRFYIVL";   // 01 
+//String GOOGLE_SCRIPT_ID = "AKfycbwvHLFtKlmxn1JLKSxQUXQtdGqMFZi6u8bgFvPCfZ_WAnRFYIVL";   // 01 
 //String GOOGLE_SCRIPT_ID = "AKfycbz7PZjFy7pxur9boSm50U3tCV5JKOieMUfiJDPS";             // 02
 //String GOOGLE_SCRIPT_ID = "AKfycbydrQCU67gRJiyRCfhZBjQmjzSCFpmc5nGzjDBE";             // 03
-//String GOOGLE_SCRIPT_ID = "AKfycbxZCbWVgx4cfmQ-cR0cVU6uUWT1yoOyShJTtqArcPNjZTbVY6E";  // 04
-//String GOOGLE_SCRIPT_ID = "AKfycbzphLuRdrU4BjnvHl4kYuuMkAB059wXw0wQ2yoZTw";           // 05
+String GOOGLE_SCRIPT_ID = "AKfycbyY0Kdl07u8Zjr1M7kntPsn45algjEQf6YY2c6lfUuTmzHaij0";  // 04
 
-const byte M3TR_unique_id = 1;
+const byte M3TR_unique_id = 4;
 
 const float M3TRver = 4;
 
@@ -25,8 +24,10 @@ const float M3TRid = M3TR_unique_id + M3TRver/100;  //p ej: 1.03;
 //const char * WIFI_PASSWORD = "ZbuQ54AsD4";
 //const char *WIFI_SSID = "Mm1";
 //const char *WIFI_PASSWORD = "12345678";
-const char * WIFI_SSID = "AGUACATE";
-const char * WIFI_PASSWORD = "chipotle";
+//const char * WIFI_SSID = "AGUACATE";
+//const char * WIFI_PASSWORD = "chipotle";
+const char * WIFI_SSID = "FLYX";
+const char * WIFI_PASSWORD = "infinito";
 
 
 

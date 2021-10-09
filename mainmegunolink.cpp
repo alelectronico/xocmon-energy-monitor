@@ -23,6 +23,13 @@ HardwareSerial atSerial(1);
 #include <OneWire.h>
 #include <DS18B20.h>
 
+
+///
+#include "MegunoLink.h"//para hablar serial sin el cable https://www.megunolink.com/articles/wireless/talk-esp32-over-wifi/
+#include "ESPmDNS.h"  //no encontre esta libreria en Platformio, la baje de https://raw.githubusercontent.com/espressif/arduino-esp32/master/libraries/ESPmDNS/src/ESPmDNS.h 
+///
+
+
 #define ONE_WIRE_BUS 15
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -210,15 +217,11 @@ float vbat=0;
 #define lipocheck 36  //GPIO36 analog pin para medir voltaje de bateria 
 #define flowpin 34   //digital pin para medir el sensor de flujo
 #define flowled 21  //antes era gpio2 porque el devmodule de menos pines tiene led, falta agregar uno para la nueva version
-#define ledgreen 32 //32 para esp32 grandes, 33 para chicos
-#define ledred 33   //33 para esp32 grandes, 32 para chicos
+#define ledgreen 32 //antes 32
+#define ledred 33   //antes 33
 #define bot 26
 #define railEnable 25
 #define enserialport 2
-
-
-unsigned long previousMillistimerbkp;
-unsigned long previousMillistimerOTA;
 
 int flagnohayluz;
 int publishnow=0;
@@ -294,6 +297,31 @@ const float A[10][3]=       { //sensor1, input , output           sensor1 = DN20
                             { 2,       0 ,    0 },
                             { 2,       0 ,    0 }
 };
+
+
+//meguno mDNS:
+void AdvertiseServices(const char *MyName)
+{
+  if (MDNS.begin(MyName))
+  {
+    Serial.println(F("mDNS responder started"));
+    Serial.print(F("I am: "));
+    Serial.println(MyName);
+ 
+    // Add service to MDNS-SD
+    MDNS.addService("n8i-mlp", "tcp", 23);
+  }
+  else
+  {
+    while (1) 
+    {
+      Serial.println(F("Error setting up MDNS responder"));
+      delay(1000);
+    }
+  }
+}
+
+
 
 void updatecurrentTime()
 {
@@ -463,7 +491,7 @@ void addtobasket() //checa que pueda subor datos a internet, si no entonces guar
   {
     reportacada = 15;
     multiplos = 120;
-  } // cada  2 min con flujo y cada 0.5 horas sin flujo
+  } // cada  5 min con flujo y cada 0.5 horas sin flujo
   if (o > 100)
   {
     reportacada = 12;
@@ -1080,7 +1108,7 @@ void sensors()
 
     } //end if bufserial4=1 (solar)
 
-    if (bufserial[4] == '4')  //nivo
+    if (bufserial[4] == '4') //nivo
     {
       //bufnivo1:
       bufnivo1 = 0;
@@ -1261,7 +1289,7 @@ void connectToWiFi(int x)
     while (WiFi.status() != WL_CONNECTED && retries > 1)
     {
       Serial.print(" m3tr wifi reconnecting...");
-      WiFi.begin(WIFI_SSID_m3tr, WIFI_PASSWORD2);
+      WiFi.begin(WIFI_SSID2, WIFI_PASSWORD2);
       WiFi.reconnect();
       delay(1000);
       Serial.print(retries);
@@ -1313,6 +1341,9 @@ void connectToWiFi(int x)
         Serial.print(WiFi.RSSI());
 
         flagonline = 1;
+
+        //megunolink mDNS:
+        AdvertiseServices("M3TR");
       }
     }
   }
@@ -1459,8 +1490,7 @@ void tempread(){
   sensor.requestTemperatures();
   Serial.print("TEMPREAD is:");
   flowtemp1 = sensor.getTempC();
-  Serial.println(flowtemp1); 
-  if (flowtemp1<0){flowtemp1=0;Serial.print(" tempread error (value<0), replacing with 0");}
+  Serial.println(flowtemp1);
 }
 
 void readshort(){
@@ -1695,9 +1725,6 @@ void empaquetador(){       //milis          //promedia las mediciones de cada pe
   long periodo = multiplos*1000;
   if((zeit-prezeit) >      periodo   *   reportacada * flaginit * publishnow)     { 
 
-//https://arduino.stackexchange.com/questions/12587/how-can-i-handle-the-millis-rollover
-
-
     //old if((flowtotal >= 0.0) || flagpubcount > maxwait ) { flagpub=1; } 
     if((flowtotal >= 0.0) || flagpubcount > maxwait ) { flagpub=1; }    
     else {
@@ -1835,12 +1862,12 @@ OTA.update(bin);
 void setup() /////////////////    SETUP    ///////////////////
   {
     //delay(200);
-    Serial.begin(115200);
+    Serial.begin(9600);
     //delay(300);
     Serial.print("\n\n");
     Serial.println("Bienvenido a M3TR! putas");
     //delay(100);
-    //Serverx.begin();
+    Serverx.begin();
   
     //atSerial.println("Texto");
 
@@ -1981,10 +2008,6 @@ void setup() /////////////////    SETUP    ///////////////////
   /////timeClient.setTimeOffset(0);
   /////timeClient.update();
   /////Serial.print(timeClient.getEpochTime());
-
-
-
-
   
 
 //railcheck();
@@ -1992,6 +2015,18 @@ void setup() /////////////////    SETUP    ///////////////////
 
 
 } //end setup
+
+
+
+
+void printmegunolink()
+{
+  if (RemoteClient.connected())
+  { 
+    RemoteClient.println("Hello World megunolink!");
+  }
+}
+
 
 void CheckForConnections()
 {
@@ -2011,6 +2046,7 @@ void CheckForConnections()
       RemoteClient = Serverx.available();
     }
   }
+  printmegunolink();
 }
 
 
@@ -2022,43 +2058,30 @@ void loop()
   {
     looppublisher();
   }
-
-  unsigned long timerbkp = millis();
-  if (timerbkp - previousMillistimerbkp >= 3600000) //cada hora
+  
+  if (millis() > timer)
   {
-      previousMillistimerbkp = timerbkp;
-      timebackup = 1;
+    timer = 2*3600000 + millis(); //cada 2 horas
+    timebackup = 1;
   }
-  //antes
-  // if (millis() > timer)
-  // {
-  //   timer = 2*3600000 + millis(); //cada 2 horas
-  //   timebackup = 1;
-  // }
 
-
-  unsigned long timerbkpOTA = millis();
-  if (timerbkpOTA - previousMillistimerOTA >= 180000) {
-      previousMillistimerOTA = timerbkpOTA;
-      OTAcheck();
+  if (millis() > timerOTA)
+  {
+    timerOTA = 180000 + millis(); //cada 3 min
+    OTAcheck();
   }
-//antes
-  // if (millis() > timerOTA)
-  // {
-  //   timerOTA = 180000 + millis(); //cada 3 min
-  //   OTAcheck();
-  // }
 
   checkserial();
   sensors();  
 
   delay(100);
   Portal.handleClient();
- // CheckForConnections();
+  CheckForConnections();
+  
 } //end loop
 
 
-//millis overflow/rollover: https://arduino.stackexchange.com/questions/12587/how-can-i-handle-the-millis-rollover
+
 
 //problema1: publicar tarda mas de 8 segundos por mensaje...
 
@@ -2070,10 +2093,3 @@ void loop()
 //falta hacer backup de version estable
 //falta cuando el internet esta malo no hace bien los backups offline y no se recupera.
 
-
-
-////para xoc temporal:
-//https://script.google.com/macros/s/AKfycbz_pcCj8ovohrlNnCZdJ2IwtwzR-uG23ejIsSIlm56_a1PpTMLy/exec?Timestamp_Device=123&config_id=2&flow=3312&tempIN=10&tempOUT=1&vbat=5
-      
-
-  //    https://script.google.com/macros/s/AKfycby56JtxUobTkE-RPaXZZ4oPHk6Bu8PTITCvI-798_7Q9JDnnDwdq81HVv4HejCIPh2jvw/exec?Timestamp_Device=123&xocsheet=0&device_id=3312&config=10&counterstatus=1&V1=5&I1=5&pf1=5&Wh1=5&V2=5&I2=5&pf2=5&Wh2=5&V3=5&I4=5&pf3=5&Wh3=5&I4=5&pf4=5&Wh4=5&I5=5&pf5=5&Wh5=5

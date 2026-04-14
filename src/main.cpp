@@ -2068,6 +2068,12 @@ String convertirParamsAJson(String params) {
         String key = params.substring(start, eq);
         String val = params.substring(eq + 1, amp);
 
+        // --- PARCHE DE SEGURIDAD PARA NAN ---
+        if (val == "nan" || val == "NAN" || val == "inf") {
+            val = "0.0"; 
+        }
+        // ------------------------------------
+
         json += "\"" + key + "\":" + val; // Los números en JSON no llevan comillas
 
         if (amp < params.length()) json += ",";
@@ -2082,7 +2088,7 @@ void send_universal_log(String params_univ)
   Serial.println(" ");
   Serial.print("Enviando a Superbase...");
   HTTPClient http; //AQUI POR PRIMERA VEZ INTENTO MANDAR DATOS. 
-  String server = "https://miqrnsiajbplihvicydr.supabase.co/rest/v1/mediciones";
+  String server = "https://miqrnsiajbplihvicydr.supabase.co/rest/v1/Mediciones";
 
   digitalWrite(ledgreen, LOW);
   digitalWrite(ledred, LOW);
@@ -2090,7 +2096,7 @@ void send_universal_log(String params_univ)
   delay(10);
   digitalWrite(WDT, LOW);
 
-  Serial.print(server); //Se refiere a la URL que ya definimos arriba. 
+  Serial.println(server); //Se refiere a la URL que ya definimos arriba. 
   Serial.print("Realizando una solicitud:");
   //http.begin(url, root_ca); // Specify the URL and certificate
 
@@ -2135,10 +2141,9 @@ void send_universal_log(String params_univ)
     // onlinecheck3();
     Serial.print("sendData sending again...");
     HTTPClient http; //AQUI VUELVE A INICIAR EL PROCESO PARA INTENTAR MANDAR DATOS. 
-    String server = "https://miqrnsiajbplihvicydr.supabase.co/rest/v1/mediciones"; //Talvez no se necesite. 
+    String server = "https://miqrnsiajbplihvicydr.supabase.co/rest/v1/Mediciones"; //Talvez no se necesite. 
 
-    Serial.print(server);
-
+    Serial.println(server);
     Serial.print("Realizando una solicitud");
     //http.begin(url, root_ca); // Specify the URL and certificate
 
@@ -2186,7 +2191,7 @@ void sendData(String params)
 {
   Serial.println("sendData sending...");
   HTTPClient http;
-  String server = "https://miqrnsiajbplihvicydr.supabase.co/rest/v1/mediciones"; 
+  String server = "https://miqrnsiajbplihvicydr.supabase.co/rest/v1/Mediciones"; 
 
   digitalWrite(ledgreen, LOW);
   digitalWrite(ledred, LOW);
@@ -2194,7 +2199,7 @@ void sendData(String params)
   delay(10);
   digitalWrite(WDT, LOW);
 
-  Serial.print(server);
+  Serial.println(server);
   Serial.print("Realizando una solicitud:");
   //http.begin(url, root_ca); // Specify the URL and certificate
 
@@ -2206,6 +2211,14 @@ void sendData(String params)
     http.addHeader("Content-Type", "application/json");
 
 String jsonPayload = convertirParamsAJson(params);
+
+
+//Prueba rapida: 
+Serial.println("");
+Serial.println(">>> REVISANDO PAQUETE ANTES DE ENVIAR <<<");
+Serial.print("URL: "); Serial.println(server);
+Serial.print("Payload generado: "); Serial.println(jsonPayload);
+Serial.println(">>> ENVIANDO... <<<");
 
   Serial.print("http.server:");
   //esp_task_wdt_init(20, true); //enable panic so ESP32 restarts}
@@ -2257,7 +2270,7 @@ String jsonPayload = convertirParamsAJson(params);
     Serial.println("Tratando de enviar de nuevo...");
     HTTPClient http; //Vuelve a intentar a enviar la información. 
 
-    Serial.print(server);
+    Serial.println(server);
     Serial.print("Realizando una solicitud:");
     //http.begin(url, root_ca); // Specify the URL and certificate
 
@@ -2364,22 +2377,19 @@ void looppublisher()
       
 
 
-      send_universal_log("Timestamp_Device=" + String(p_currenttime)+ "&config_id=" + String(caso) + "&XOC_id=" + String(XOCid,3)  + "&counterstatus=" + String(p_counterstatus) );// + "&count=" + String(0)); //count todavia no esta soportado, no se si se necesita
-      
+      //send_universal_log("XOCid=" + String(XOCid) + "&timestamp=" + String(p_currenttime)); // Comentado Ya que es redundante con el nuevo sendData
+          
       //old sendData("Timestamp_Device=" + String(currentTimebkp) + "&config_id=" + String(caso) + "&flow=" + String(hotflowbkp) + "&tempIN=" + String(hottempbkpIN)+ "&tempOUT=" + String(hottempbkpOUT) + "&vbat=" + String(solarbatbkp)+ "&count=" + String(solarcountbkp));// + "&count=" + String(0)); //count todavia no esta soportado, no se si se necesita
       
       //version para sheets xoc1xx corriendo en vscode xoc002clone
       //sendData("Timestamp_Device=" + String(p_currenttime)+ "&config_id=" + String(caso) + "&XOC_id=" + String(XOCid,3)  + "&counterstatus=" + String(p_counterstatus) + "&V1=" + String(p_V1)+ "&V2=" + String(p_V2) + "&V3=" + String(p_V3)+ "&I1=" + String(p_Ix0)+ "&I2=" + String(p_Ix1)  + "&I3=" + String(p_Ix2)+ "&I4=" + String(p_Ix3) + "&I5=" + String(p_Ix4)+ "&I6=" + String(p_Ix5)+ "&I7=" + String(p_Ix6)+ "&I8=" + String(p_Ix7)+ "&I9=" + String(p_Ix8)+ "&I10=" + String(p_Ix9)+ "&I11=" + String(p_Ix10)+ "&I12=" + String(p_Ix11)+ "&Wh1=" + String(p_Whx0)+ "&Wh2=" + String(p_Whx1) + "&Wh3=" + String(p_Whx2)+ "&Wh4=" + String(p_Whx3)+ "&Wh5=" + String(p_Whx4)+ "&Wh6=" + String(p_Whx5)+ "&Wh7=" + String(p_Whx6)+ "&Wh8=" + String(p_Whx7)+ "&Wh9=" + String(p_Whx8)+ "&Wh10=" + String(p_Whx9)+ "&Wh11=" + String(p_Whx10)+ "&Wh12=" + String(p_Whx11)+ "&pf1=" + String(p_pfx0)+ "&pf2=" + String(p_pfx1)+ "&pf3=" + String(p_pfx2)+ "&pf4=" + String(p_pfx3)+ "&pf5=" + String(p_pfx4)+ "&pf6=" + String(p_pfx5)+ "&pf7=" + String(p_pfx6)+ "&pf8=" + String(p_pfx7)+ "&pf9=" + String(p_pfx8)+ "&pf10=" + String(p_pfx9)+ "&pf11=" + String(p_pfx10)+ "&pf12=" + String(p_pfx11) );// + "&count=" + String(0)); //count todavia no esta soportado, no se si se necesita
       
-
-
       //version xoc2xx corriendo en vscode xoc003 ahora con payload extendida para incluir maxpot1-12 para mostrar potencia pico
       //sendData("Timestamp_Device=" + String(p_currenttime)+ "&config_id=" + String(caso) + "&XOC_id=" + String(XOCid,3)  + "&counterstatus=" + String(p_counterstatus) + "&V1=" + String(p_V1)+ "&V2=" + String(p_V2) + "&V3=" + String(p_V3)+ "&I1=" + String(p_Ix0)+ "&I2=" + String(p_Ix1)  + "&I3=" + String(p_Ix2)+ "&I4=" + String(p_Ix3) + "&I5=" + String(p_Ix4)+ "&I6=" + String(p_Ix5)+ "&I7=" + String(p_Ix6)+ "&I8=" + String(p_Ix7)+ "&I9=" + String(p_Ix8)+ "&I10=" + String(p_Ix9)+ "&I11=" + String(p_Ix10)+ "&I12=" + String(p_Ix11)+ "&Wh1=" + String(p_Whx0)+ "&Wh2=" + String(p_Whx1) + "&Wh3=" + String(p_Whx2)+ "&Wh4=" + String(p_Whx3)+ "&Wh5=" + String(p_Whx4)+ "&Wh6=" + String(p_Whx5)+ "&Wh7=" + String(p_Whx6)+ "&Wh8=" + String(p_Whx7)+ "&Wh9=" + String(p_Whx8)+ "&Wh10=" + String(p_Whx9)+ "&Wh11=" + String(p_Whx10)+ "&Wh12=" + String(p_Whx11)    + "&maxamps1=" + String(p_maxamps0)+ "&maxamps2=" + String(p_maxamps1)+"&maxamps3=" + String(p_maxamps2)+"&maxamps4=" + String(p_maxamps3)+"&maxamps5=" + String(p_maxamps4)+"&maxamps6=" + String(p_maxamps5)+"&maxamps7=" + String(p_maxamps6)+"&maxamps8=" + String(p_maxamps7)+"&maxamps9=" + String(p_maxamps8)+"&maxamps10=" + String(p_maxamps9)+"&maxamps11=" + String(p_maxamps10)+"&maxamps12=" + String(p_maxamps11)+   "&pf1=" + String(p_pfx0)+ "&pf2=" + String(p_pfx1)+ "&pf3=" + String(p_pfx2)+ "&pf4=" + String(p_pfx3)+ "&pf5=" + String(p_pfx4)+ "&pf6=" + String(p_pfx5)+ "&pf7=" + String(p_pfx6)+ "&pf8=" + String(p_pfx7)+ "&pf9=" + String(p_pfx8)+ "&pf10=" + String(p_pfx9)+ "&pf11=" + String(p_pfx10)+ "&pf12=" + String(p_pfx11) );// + "&count=" + String(0)); //count todavia no esta soportado, no se si se necesita
-      //******* */
-      //p_Ix4=flag_error; //temp. COMENTADA POR RECOMENDACIÓN DE IA. 
-
-       sendData("Timestamp_Device=" + String(p_currenttime)+ "&config_id=" + String(caso) + "&XOC_id=" + String(XOCid,3)  + "&counterstatus=" + String(p_counterstatus) + "&V1=" + String(p_V1)+ "&V2=" + String(p_V2) + "&V3=" + String(p_V3)+ "&I1=" + String(p_Ix0)+ "&I2=" + String(p_Ix1)  + "&I3=" + String(p_Ix2)+ "&I4=" + String(p_Ix3) + "&I5=" + String(p_Ix4)+ "&I6=" + String(p_Ix5)+ "&I7=" + String(p_Ix6)+ "&I8=" + String(p_Ix7)+ "&I9=" + String(p_Ix8)+ "&I10=" + String(p_Ix9)+ "&I11=" + String(p_Ix10)+ "&I12=" + String(p_Ix11)+ "&Wh1=" + String(p_Whx0)+ "&Wh2=" + String(p_Whx1) + "&Wh3=" + String(p_Whx2)+ "&Wh4=" + String(p_Whx3)+ "&Wh5=" + String(p_Whx4)+ "&Wh6=" + String(p_Whx5)+ "&Wh7=" + String(p_Whx6)+ "&Wh8=" + String(p_Whx7)+ "&Wh9=" + String(p_Whx8)+ "&Wh10=" + String(p_Whx9)+ "&Wh11=" + String(p_Whx10)+ "&Wh12=" + String(p_Whx11)    + "&maxamps1=" + String(p_maxamps0)+ "&maxamps2=" + String(p_maxamps1)+"&maxamps3=" + String(p_maxamps2)+"&maxamps4=" + String(p_maxamps3)+"&maxamps5=" + String(p_maxamps4)+"&maxamps6=" + String(p_maxamps5)+"&maxamps7=" + String(p_maxamps6)+"&maxamps8=" + String(p_maxamps7)+"&maxamps9=" + String(p_maxamps8)+"&maxamps10=" + String(p_maxamps9)+"&maxamps11=" + String(p_maxamps10)+"&maxamps12=" + String(p_maxamps11)+   "&pf1=" + String(p_pfx0)+ "&pf2=" + String(p_pfx1)+ "&pf3=" + String(p_pfx2)+ "&pf4=" + String(p_pfx3)+ "&pf5=" + String(p_pfx4)+ "&pf6=" + String(p_pfx5)+ "&pf7=" + String(p_pfx6)+ "&pf8=" + String(p_pfx7)+ "&pf9=" + String(p_pfx8)+ "&pf10=" + String(p_pfx9)+ "&pf11=" + String(p_pfx10)+ "&pf12=" + String(p_pfx11) );// + "&count=" + String(0)); //count todavia no esta soportado, no se si se necesita
+      
+      //p_Ix4=flag_error; //temp. ESTA ERA LA CAUSANTE DEL ERROR I5. 
        
+      sendData("XOCid=" + String(XOCid) + "&V1=" + String(p_V1) + "&V2=" + String(p_V2) + "&V3=" + String(p_V3) + "&I1=" + String(p_Ix0) + "&I2=" + String(p_Ix1) + "&I3=" + String(p_Ix2) + "&I4=" + String(p_Ix3) + "&I5=" + String(p_Ix4) + "&I6=" + String(p_Ix5) + "&I7=" + String(p_Ix6) + "&I8=" + String(p_Ix7) + "&I9=" + String(p_Ix8) + "&I10=" + String(p_Ix9) + "&I11=" + String(p_Ix10) + "&I12=" + String(p_Ix11) + "&Wh1=" + String(p_Whx0) + "&Wh2=" + String(p_Whx1) + "&Wh3=" + String(p_Whx2) + "&Wh4=" + String(p_Whx3) + "&Wh5=" + String(p_Whx4) + "&Wh6=" + String(p_Whx5) + "&Wh7=" + String(p_Whx6) + "&Wh8=" + String(p_Whx7) + "&Wh9=" + String(p_Whx8) + "&Wh10=" + String(p_Whx9) + "&Wh11=" + String(p_Whx10) + "&Wh12=" + String(p_Whx11) + "&MAXamp1=" + String(p_maxamps0) + "&MAXamp2=" + String(p_maxamps1) + "&MAXamp3=" + String(p_maxamps2) + "&MAXamp4=" + String(p_maxamps3) + "&MAXamp5=" + String(p_maxamps4) + "&MAXamp6=" + String(p_maxamps5) + "&MAXamp7=" + String(p_maxamps6) + "&MAXamp8=" + String(p_maxamps7) + "&MAXamp9=" + String(p_maxamps8) + "&MAXamp10=" + String(p_maxamps9) + "&MAXamp11=" + String(p_maxamps10) + "&MAXamp12=" + String(p_maxamps11) + "&pf1=" + String(p_pfx0) + "&pf2=" + String(p_pfx1) + "&pf3=" + String(p_pfx2) + "&pf4=" + String(p_pfx3) + "&pf5=" + String(p_pfx4) + "&pf6=" + String(p_pfx5) + "&pf7=" + String(p_pfx6) + "&pf8=" + String(p_pfx7) + "&pf9=" + String(p_pfx8) + "&pf10=" + String(p_pfx9) + "&pf11=" + String(p_pfx10) + "&pf12=" + String(p_pfx11));
 
       if (flag_online == 1)
       {

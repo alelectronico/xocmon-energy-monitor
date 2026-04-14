@@ -75,8 +75,10 @@ float icalib[]={
  byte iconfig[]={1,1,1,1,1,1,1,1,1,1, 1, 1}; //Para XOC 307
 
 
-const float XOCid = XOC_unique_id + XOCver/1000;  //p ej: 1.03;
+//const float XOCid = XOC_unique_id + XOCver/1000;  //p ej: 1.03; Lo comente para la modificación. 
 //local AP url: http://172.217.28.1/_ac/
+
+const int XOCid = XOC_unique_id;
 
 //////////////////// Default Wifi credentials ///////////////////////////
 

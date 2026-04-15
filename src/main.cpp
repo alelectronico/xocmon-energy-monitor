@@ -1629,7 +1629,7 @@ void wificheck()
 
 
 
-void addtobasket() //checa que pueda subor datos a internet, si no entonces guarda en ram cada medicion hasta que pueda subir los datos pendientes
+void addtobasket() //checa que pueda subir datos a internet, si no entonces guarda en ram cada medicion hasta que pueda subir los datos pendientes
 {
   Serial.print("addtobasket ");
 
@@ -2611,7 +2611,7 @@ for (byte j = 0; j < 12; j++)
   delay(100);
   updatecurrentTime();
   // wificheck();
-  
+
    ////Aqui antes comparaba si habia WIFI y despues trataba de enviar a universal log. send_universal_log("Timestamp_Device=" + String(currentTime) + "&config_id=" + String(caso) + "&XOC_id=" + String(XOCid, 3) + "&counterstatus=" + String(0));
 
 } // end setup

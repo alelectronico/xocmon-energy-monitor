@@ -1,2 +1,16 @@
-# Gateway ESP 32
+# XOCmon — Smart Energy Monitoring System
+
 Multi-phase energy monitoring system tracking 3 phases and 12 current lines, designed to optimize energy consumption through real-time data visualization.
+
+## Features
+- Multi-phase monitoring (3 phases, 12 current lines)
+- Real-time energy tracking
+- Custom dashboard for data visualization
+
+## Tech Stack
+- ESP32 / Arduino
+- C++
+- Current sensors (specify if you can)
+
+## Overview
+XOCmon is designed to monitor and analyze electrical consumption across multiple phases, helping users optimize energy usage and improve efficiency.

@@ -85,8 +85,8 @@ const int XOCid = XOC_unique_id;
 //const char * WIFI_SSID = "FLYX";
 //const char * WIFI_PASSWORD = "infinito";
 
-  const char * WIFI_SSID = "UMx Dragon";
-  const char * WIFI_PASSWORD = "Dragones.UMx";
+  const char * WIFI_SSID = "UMx Profe";
+  const char * WIFI_PASSWORD = "UMx.22.Profe";
 
 //const char * WIFI_SSID = "INFINITUMCCB5";
 //const char * WIFI_PASSWORD = "7hfVacXZv4";  

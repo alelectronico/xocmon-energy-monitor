@@ -10,6 +10,7 @@
 #include <WiFi.h>
 #include <time.h>
 #include <SPI.h>
+#include <SD.h>
 #include <LoRa.h>
 #include <math.h>
 //#include <ESP32Ping.h> 
@@ -46,8 +47,8 @@ unsigned long period;
 unsigned long zeit,prezeit;
 unsigned long millispre;
 const int BACKUPSIZE=200;
-unsigned long currenttimearray[BACKUPSIZE];
-float payloadbag[BACKUPSIZE][55];
+//unsigned long currenttimearray[BACKUPSIZE];c//Se comenta por implementar la SD. 
+//float payloadbag[BACKUPSIZE][55]; //La comente por implementar SD. 
 
  unsigned long tiempoa;
   unsigned long tiempob;
@@ -62,6 +63,7 @@ TaskHandle_t Task2; //core 1
 #define bot    	    36 	  //VP
 #define ledred    	13	
 #define ledgreen    12	
+#define CSSD        23      // SPI slave select for SD card
 #define ADCCS1    	33 		   // SPI slave select
 #define ADCCS2    	25 		   // SPI slave select
 #define MISO        19 // GPIO19 MISO
@@ -69,6 +71,16 @@ TaskHandle_t Task2; //core 1
 #define SCK         5   // GPIO5  SCK
 #define WDT         32   // GPIO5  SCK
 #define SDdetect    39   // VN
+
+bool sdReady =false;
+
+int contarLineas(const char* ruta);  //Esto es para el semaforo. 
+
+void escribirSD(const char* ruta, String datos);
+void sendData(String data);
+void eliminarPrimeraLinea(const char* ruta);
+
+int pendientes =0; //Este es para eficientar y no leer linea por linea. 
 
 int adcvalue;
 
@@ -88,8 +100,8 @@ byte current_input;
 
 float V1prom,V2prom,V3prom;
 float V1pre,V2pre,V3pre;
-float counterstatus;
-int intcounterstatus;
+float counterstatus = 0.0;
+int intcounterstatus = 0;
 float Ixprom[12];
 float Px[12];
 float Whx[12];
@@ -242,46 +254,34 @@ int read(byte ADC, byte chanselector)
   }
 
   adcvalue = 0;
-  byte commandbits = B11000000; // command bits - start, mode, chn (3), dont care (3)
+  
+  // Configuramos los 3 bytes para enviar al MCP3208
+  byte b0 = 0x06 | (((channel - 1) >> 2) & 0x01); 
+  byte b1 = ((channel - 1) & 0x03) << 6;
 
-  // allow channel selection
-  commandbits |= ((channel - 1) << 3);
-
-
-
-
-  if (ADC == 1)
-  {
-    digitalWrite(ADCCS1, LOW); // Select adc
+  // Iniciamos la transacción SPI por hardware para evitar conflictos con la tarjeta SD
+  SPI.beginTransaction(SPISettings(1600000, MSBFIRST, SPI_MODE0));
+  
+  if (ADC == 1) {
+    digitalWrite(ADCCS1, LOW); // Select adc 1
+  } else {
+    digitalWrite(ADCCS2, LOW); // Select adc 2
   }
-  else
-  {
-    digitalWrite(ADCCS2, LOW); // Select adc
+
+  // Hacer lectura del SPI por hardware
+  SPI.transfer(b0);
+  byte res1 = SPI.transfer(b1);
+  byte res2 = SPI.transfer(0x00);
+
+  if (ADC == 1) {
+    digitalWrite(ADCCS1, HIGH); // turn off device
+  } else {
+    digitalWrite(ADCCS2, HIGH); // turn off device
   }
-  // setup bits to be written
-  //--------------------------------START ADC----------------------------------------------------------------------
-  for (int i = 7; i >= 3; i--)
-  { // hacer lectura del SPI de forma bitbangeada
-    digitalWrite(MOSI, commandbits & 1 << i);
-    // cycle clock
-    digitalWrite(SCK, HIGH);
-    digitalWrite(SCK, LOW);
-  }
-  digitalWrite(SCK, HIGH); // ignores 2 null bits
-  digitalWrite(SCK, LOW);
-  digitalWrite(SCK, HIGH);
-  digitalWrite(SCK, LOW);
-  // read bits from adc
-  for (int i = 11; i >= 0; i--) //i=11 do not change unless absolutely sure
-  {
-    adcvalue += digitalRead(MISO) << i;
-    // cycle clock
-    digitalWrite(SCK, HIGH);
-    digitalWrite(SCK, LOW);
-  }
-  //--------------------------------STOP ADC----------------------------------------------------------------------
-  digitalWrite(ADCCS1, HIGH); // turn off device
-  digitalWrite(ADCCS2, HIGH); // turn off device
+  
+  SPI.endTransaction();
+  
+  adcvalue = ((res1 & 0x0F) << 8) | res2;
   return adcvalue;
 
 } // end read
@@ -559,7 +559,7 @@ void voltajes_new() // lee arrays de voltaje y entrega floats V1,V2,V3
       int a = vmax - 2048;
       int b = 2048 - vmin;
       int c = abs(a - b);
-      if (c < 100)
+      if (c < 150) //Lo cambio por un valor menos rigido. 
       {
         V = (vmax - vmin) * Vcalib; // se obtiene Vrms de cada fase
         // Serial.print(" V simetrico, c=");
@@ -607,7 +607,7 @@ void corrientes_new()
       int a = imax - midpoint;
       int b = midpoint - imin;
       int c = abs(a - b);
-      if (c < 100) // symmetry ok?
+      if (c < 150) // symmetry ok?. Lo cambio por un valor menos rigido. 
       {
         // if symmetry is detected proceed with iarea
         // iarea
@@ -1622,103 +1622,103 @@ void wificheck()
 
 ////////wifi end///////
 
+void addtobasket() {
+  // 1. EL PORTERO: ¿Hay internet?
+  if (flag_online == 1) {
+    updatecurrentTime();
+    Serial.println(">> Red detectada: Sincronizando tiempo...");
+  }
 
+  // 2. OBTENER EL TIEMPO QUE TENGA EL CHIP
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  char fechaFormateada[20];
+  strftime(fechaFormateada, sizeof(fechaFormateada), "%Y-%m-%dT%H:%M:%S", &timeinfo);
+// 3. LÓGICA DE COUNTERSTATUS
 
+// Siempre incrementas el entero (la base real)
+intcounterstatus++;
 
+// Ahora decides cómo representarlo
+if (flag_online == 1) {
+  // Online → entero limpio
+  counterstatus = (float)intcounterstatus;
+} else {
+  // Offline → mismo número pero con ".1"
+  counterstatus = (float)intcounterstatus + 0.1;
+}
+  /*
+  counterstatus++;
+  if(flag_online ==1){
+    counterstatus = (float)((int)counterstatus);
+    //counterstatus = (int)counterstatus; //Forzamos a entero
+    //counterstatus = intcounterstatus; //Seguimos forzando a entero para evitar decimales. 
+  } else {
+     counterstatus = counterstatus + 0.1;
+     if (counterstatus >= 1.19){
+      counterstatus = counterstatus - .1;
+     }
+  }
+*/
+  // 4. CONSTRUCCIÓN DEL DATASTRING 
+ //String dataString = "XOCid=" + String(XOCid) + "&timestamp=" + String(fechaFormateada) + "&Counter=" + String(counterstatus, 1) +"&V1=" + String(V1) + "&V2=" + String(V2) + "&V3=" + String(V3) + "&I1=" + String(Ix[0]) + "&I2=" + String(Ix[1]) + "&I3=" + String(Ix[2]) + "&I4=" + String(Ix[3]) + "&I5=" + String(Ix[4]) + "&I6=" + String(Ix[5]) + "&I7=" + String(Ix[6]) + "&I8=" + String(Ix[7]) + "&I9=" + String(Ix[8]) + "&I10=" + String(Ix[9]) + "&I11=" + String(Ix[10]) + "&I12=" + String(Ix[11]) + "&Wh1=" + String(Whx[0]) + "&Wh2=" + String(Whx[1]) + "&Wh3=" + String(Whx[2]) + "&Wh4=" + String(Whx[3]) + "&Wh5=" + String(Whx[4]) + "&Wh6=" + String(Whx[5]) + "&Wh7=" + String(Whx[6]) + "&Wh8=" + String(Whx[7]) + "&Wh9=" + String(Whx[8]) + "&Wh10=" + String(Whx[9]) + "&Wh11=" + String(Whx[10]) + "&Wh12=" + String(Whx[11]) + "&MAXamp1=" + String(maxamps[0]) + "&MAXamp2=" + String(maxamps[1]) + "&MAXamp3=" + String(maxamps[2]) + "&MAXamp4=" + String(maxamps[3]) + "&MAXamp5=" + String(maxamps[4]) + "&MAXamp6=" + String(maxamps[5]) + "&MAXamp7=" + String(maxamps[6]) + "&MAXamp8=" + String(maxamps[7]) + "&MAXamp9=" + String(maxamps[8]) + "&MAXamp10=" + String(maxamps[9]) + "&MAXamp11=" + String(maxamps[10]) + "&MAXamp12=" + String(maxamps[11]) + "&pf1=" + String(pf[0]) + "&pf2=" + String(pf[1]) + "&pf3=" + String(pf[2]) + "&pf4=" + String(pf[3]) + "&pf5=" + String(pf[4]) + "&pf6=" + String(pf[5]) + "&pf7=" + String(pf[6]) + "&pf8=" + String(pf[7]) + "&pf9=" + String(pf[8]) + "&pf10=" + String(pf[9]) + "&pf11=" + String(pf[10]) + "&pf12=" + String(pf[11]);
+String dataString = "";
+dataString.reserve(1200); // Apartamos memoria de una vez para que no "choque"
 
+// 1. Encabezado y voltajes
+dataString = "XOCid=" + String(XOCid);
+dataString += "&timestamp=" + String(fechaFormateada);
+dataString += "&Counter=" + String(counterstatus, 1);
+dataString += "&V1=" + String(V1) + "&V2=" + String(V2) + "&V3=" + String(V3);
 
+// 2. Corrientes (Ix)
+for (int i = 0; i < 12; i++) {
+  dataString += "&I" + String(i + 1) + "=" + String(Ix[i]);
+}
 
+// 3. Energías (Wh)
+for (int i = 0; i < 12; i++) {
+  dataString += "&Wh" + String(i + 1) + "=" + String(Whx[i]);
+}
 
-void addtobasket() //checa que pueda subir datos a internet, si no entonces guarda en ram cada medicion hasta que pueda subir los datos pendientes
-{
-  Serial.print("addtobasket ");
+// 4. Máximos (MAXamp)
+for (int i = 0; i < 12; i++) {
+  dataString += "&MAXamp" + String(i + 1) + "=" + String(maxamps[i]);
+}
 
-  updatecurrentTime();
+// 5. Factores de potencia (pf)
+for (int i = 0; i < 12; i++) {
+  dataString += "&pf" + String(i + 1) + "=" + String(pf[i]);
+}
+//////////AQUI ACABA EL ENVIO DE DATOS. 
 
-  if (caso == 0)
-  {
-    counterstatus++;
-    if (counterstatus > 9999)
-    {
-      counterstatus = 0;
+  // 5. ACCIONES SEGÚN CONEXIÓN
+  
+if (flag_online == 1) {
+    // REVISIÓN: ¿Hay pendientes en la SD?
+    //if (contarLineas("/pendientes.csv") > 0) { 
+    if (pendientes > 0){ //EXPERIMENAL. ANTES LA LINEA DE ARRIBA. Ayuda a eficientar y que no lea linea por linea. 
+      // Si hay deudas, el dato actual NO se manda a la nube, se va a la cola de la SD
+      // Así garantizamos que el orden sea 1.1, 2.1, 3.1 y LUEGO el 4.0
+      if (sdReady) {
+        escribirSD("/pendientes.csv", dataString);//Experimental. 
+        pendientes++;
+        Serial.println(">> SD: Hay deudas previas. Guardando actual en pendientes para mantener orden.");
+      }
+    } else {
+      // Si la SD está limpia, mandamos directo
+      sendData(dataString);
+      Serial.println(">> Nube: Enviado en tiempo real.");
+    }
+  } else {
+    // Si no hay internet
+    if (sdReady) {
+      escribirSD("/pendientes.csv", dataString);
+      pendientes++; //Experimental. Ayuda a eficientar y que no lea linea por linea. 
     }
   }
+}
 
-  if (flag_online == 0)
-  {
-    intcounterstatus = counterstatus;
-    counterstatus = intcounterstatus;
-    counterstatus = counterstatus + 0.1;
-  }
-  else
-  {
-    intcounterstatus = counterstatus;
-    counterstatus = intcounterstatus;
-  }
-
-  o++;
-  Serial.print("location 'o': ");
-  Serial.println(o);
-
-  if (o == BACKUPSIZE - 1)
-  {
-       // si se llena entonces suma los Wh y los guarda en la primera casilla de BACKUPSIZE, si se vuelve a llenar guarda todo en la segunda casilla etc.
-            // if (bigbackup==BACKUPSIZE-2){bigbackup=0;}//ahora si sobreescribe el backup
-            
-            // float Wh1acum,Wh2acum,Wh3acum,Wh4acum,Wh5acum=0.0;
-            // for(int p=bigbackup;p<BACKUPSIZE;p++){
-            //     Wh1acum=Wh1acum+payloadbag[p][13];
-            //     Wh2acum=Wh2acum+payloadbag[p][14];
-            //     Wh3acum=Wh3acum+payloadbag[p][15];
-            //     Wh4acum=Wh4acum+payloadbag[p][16];
-            //     Wh5acum=Wh5acum+payloadbag[p][17];
-            //     payloadbag[p][19]=0;
-            // }
-            // payloadbag[bigbackup][13]=Wh1acum;
-            // payloadbag[bigbackup][14]=Wh2acum;
-            // payloadbag[bigbackup][15]=Wh3acum;
-            // payloadbag[bigbackup][16]=Wh4acum;
-            // payloadbag[bigbackup][17]=Wh5acum;
-            // payloadbag[bigbackup][19]=1;
-            
-            // bigbackup++;
-            // o=bigbackup;
-            o=0;
-            payloadbag[o][0] = 0;
-  }
-  else
-  {
-    //antes
-    // while (payloadbag[o][0] == 1) // encuentra un slot libre
-    // {
-    //   o++;Serial.print(o);
-    // } 
-
-    //ahora
-    int q=0;
-    while (payloadbag[q][0] == 1) // encuentra un slot libre
-    {
-      q++;Serial.print(q);
-    } 
-    o=q;
-
-    payloadbag[o][0] = 1;
-    payloadbag[o][2] = counterstatus;
-    currenttimearray[o] = currentTime; //se necesita usar unsigned long en vez de float para que funcione bien
-    payloadbag[o][3] = V1;
-    payloadbag[o][4] = V2;
-    payloadbag[o][5] = V3;
-
-    for (byte j = 0; j < 12; j++)
-    {
-      payloadbag[o][j + 6] = Ix[j];
-      payloadbag[o][j + 18] = Whx[j];
-      payloadbag[o][j + 30] = maxamps[j];
-      payloadbag[o][j + 42] = pf[j]; 
-    }
-
-  } //end else
-} //end addtobasket
 
 void empaquetador()
 {
@@ -2188,8 +2188,72 @@ Serial.println(">>> ENVIANDO... <<<");
   }
 
 } // end senddata
+
+
 void looppublisher()
 {
+
+// 1. Solo actuamos si hay internet y la SD está lista
+  if (flag_online == 1 && sdReady) {
+
+  //int totalPendientes = contarLineas("/pendientes.csv");
+   // if (totalPendientes == 0) return;
+
+   if (pendientes == 0) return; //EXPERIMENTAL. Ayuda a eficientar y que no lea linea por linea. 
+    
+    // Intentamos abrir el archivo de pendientes
+    File archivo = SD.open("/pendientes.csv", FILE_READ);
+    if (!archivo) return; // Si no hay archivo, no hay deudas. Salimos.
+
+    if (archivo.available()) {
+      // 2. LEER: Sacamos la primera línea (el dato más viejo)
+      String lineaPendiente = archivo.readStringUntil('\n');
+      archivo.close(); // Cerramos para poder manipular el archivo después
+
+      if (lineaPendiente.length() > 10) { // Validamos que no sea una línea vacía
+        
+        // 3. ACTUALIZAR TIEMPO: Como hay internet, obtenemos la hora de "ahora"
+        updatecurrentTime();
+        struct tm timeinfo;
+        getLocalTime(&timeinfo);
+        char fActual[20];
+        strftime(fActual, sizeof(fActual), "%Y-%m-%dT%H:%M:%S", &timeinfo);
+
+        //Para que no me marque 1970 en la primera. 
+        int idx = lineaPendiente.indexOf("timestamp=");
+if (idx != -1) {
+  int fin = lineaPendiente.indexOf("&", idx);
+  
+  if (fin != -1) {
+    lineaPendiente = lineaPendiente.substring(0, idx + 10) + String(fActual) + lineaPendiente.substring(fin);
+  }
+}
+
+        // 4. RE-ARMAR Y ENVIAR: 
+        Serial.println("SD: Enviando dato original de la SD:...");
+        sendData(lineaPendiente); // Aquí se envía el dato que estaba guardado en la SD.
+
+        //Para actualizar el tiempo cuando no hay internet:
+
+        if (httpCode > 0) { 
+          eliminarPrimeraLinea("/pendientes.csv");
+          pendientes--; //EXPERIMENTAL. Ayuda a eficientar y que no lea linea por linea.
+          Serial.println(">> SD: Línea eliminada correctamente.");
+          
+          // Subimos a 500ms. Escribir archivos en SD es lento, 
+          // necesitamos que termine el proceso de borrado antes de la siguiente vuelta.
+          delay(500); 
+        } else {
+          Serial.println(">> SD: Error de envío. Se mantiene en fila para reintento.");
+          delay(1000); // Si falló el internet, esperamos más para no saturar
+        }
+      }
+    } else {
+      archivo.close();
+    }
+  }
+
+/*
   for (int i = BACKUPSIZE; i >= 0; i--)
   {
     if (payloadbag[i][0] == 1)//si hay un dato guardado
@@ -2309,7 +2373,11 @@ void looppublisher()
       //Serial.print("nadaaaaaa maaaaas");
     }
   }//end for
+
+  */
 }//end looppublisher
+
+
 
 void OTAcheck()
 {
@@ -2503,10 +2571,11 @@ void doevery()
 
 void setup() /////////////////    SETUP    ///////////////////
 {
-
-
   delay(100);
    //set pin modes 
+
+counterstatus = 0.0; 
+ pinMode(CSSD, OUTPUT);
  pinMode(ADCCS1, OUTPUT);
  pinMode(ADCCS2, OUTPUT);
  pinMode(MOSI, OUTPUT);
@@ -2517,6 +2586,7 @@ void setup() /////////////////    SETUP    ///////////////////
  pinMode(ledgreen, OUTPUT);
  pinMode(bot, INPUT_PULLUP);
  // disable device to start with
+ digitalWrite(CSSD, HIGH);
  digitalWrite(ADCCS1, HIGH);
  digitalWrite(ADCCS2, HIGH);
  digitalWrite(MOSI, LOW);
@@ -2534,6 +2604,16 @@ void setup() /////////////////    SETUP    ///////////////////
  Serial.println(XOCid,3);
 
  Serial.println("-----------SETUP-----------");
+
+  SPI.begin(SCK, MISO, MOSI, -1); // Inicia el SPI en los pines: 5, 19, 27 (sin CS automatico)
+  if (!SD.begin(CSSD)) {
+    Serial.println(">> SD: Error de montaje.");
+    sdReady = false;
+  } else {
+    Serial.println(">> SD: Montada correctamente.");
+    sdReady = true;
+  }
+
  /////pinMode(flowpin, INPUT_PULLUP);
  /////digitalWrite(enserialport, LOW); //LOW=ON
 
@@ -2557,6 +2637,8 @@ void setup() /////////////////    SETUP    ///////////////////
 
  // para mensajes de LoRa
  whiteID[0] = XOC_unique_id;
+
+ pendientes = contarLineas("/pendientes.csv"); //EXPERIMENTAL. Ayuda a eficientar y que no lea linea por linea.
 
  // stored preferences:
  Serial.println("loading stored data from preferences...");
@@ -2638,6 +2720,71 @@ void loop()
   //zeit = millis();
   delay(100);
   Serial.print("'");
+}
+
+// --- PASO 4: FUNCIÓN AUXILIAR DE ESCRITURA  PARA LA SD. ---
+void escribirSD(const char* ruta, String datos) {
+  if (!sdReady) return;
+  
+  // Bloqueo de seguridad para que los ADC no interrumpan el bus SPI
+  digitalWrite(ADCCS1, HIGH); 
+  digitalWrite(ADCCS2, HIGH);
+
+  File dataFile = SD.open(ruta, FILE_APPEND);
+  if (dataFile) {
+    dataFile.println(datos);
+    dataFile.close();
+  } else {
+    Serial.println(">> SD: Error abriendo archivo " + String(ruta));
+  }
+  
+  // Liberamos el Chip Select de la SD
+  digitalWrite(CSSD, HIGH); 
+}
+
+void eliminarPrimeraLinea(const char* ruta) {
+  File origen = SD.open(ruta, FILE_READ);
+  if (!origen) return;
+
+  // Saltamos la primera línea
+  origen.readStringUntil('\n');
+
+  // Creamos un archivo temporal para el resto
+  File destino = SD.open("/temp.csv", FILE_WRITE);
+  while (origen.available()) {
+    destino.write(origen.read());
+  }
+  
+  origen.close();
+  destino.close();
+
+  // Borramos el viejo y renombramos el nuevo
+  SD.remove(ruta);
+  SD.rename("/temp.csv", ruta);
+  Serial.println(">> SD: Deuda saldada y línea eliminada.");
+}
+
+//  FUNCIÓN AUXILIAR PARA CONTAR LÍNEAS EN LA SD. ---
+int contarLineas(const char* ruta) {
+  // 1. Si el archivo no existe, no hay líneas
+  if (!SD.exists(ruta)) {
+    return 0;
+  }
+
+  // 2. Abrimos el archivo en modo lectura
+  File f = SD.open(ruta, FILE_READ);
+  if (!f) return 0;
+
+  int count = 0;
+  // 3. Recorremos el archivo contando saltos de línea
+  while (f.available()) {
+    if (f.read() == '\n') {
+      count++;
+    }
+  }
+
+  f.close(); // Siempre cerramos
+  return count;
 }
 
 //2do:

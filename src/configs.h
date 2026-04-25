@@ -30,7 +30,7 @@ const char* apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 //>>>>>>>>>   remember to check:   <<<<<<<<<<<<<<<<<<<<<<<<
 //1.sheet, 2.id, 3.ver, 4.wifi, 5.calib
 
-const byte XOC_unique_id = 121;      //ID. Mi propia aportación. Para XOC120 es 120. XOC 307 es 121. XOX 308 es 122. XOC 309 es 123.  XOC 310 es 124. 
+const byte XOC_unique_id = 124;      //ID. Mi propia aportación. Para XOC120 es 120. XOC 307 es 121. XOX 308 es 122. XOC 309 es 123.  XOC 310 es 124. 
 const float XOCver = 300;            //308      //version, debe ser igual a la que se exporta p.ej firmware4.6.bin en https://s3.console.aws.amazon.com/s3/buckets/otabucketm?region=us-east-1&tab=objects   services@m3tr.com    aguapasapormicasaaws3!
 
 int caso = 0; //caso se usa para que la google spreadsheet mande adiferentes sheets, por el momento solo hay caso=0
@@ -86,7 +86,7 @@ const int XOCid = XOC_unique_id;
 //const char * WIFI_PASSWORD = "infinito";
 
   const char * WIFI_SSID = "UMx Profe";
-  const char * WIFI_PASSWORD = "UMx.22.Profe";
+  const char * WIFI_PASSWORD = "UMx.21.Profe";
 
 //const char * WIFI_SSID = "INFINITUMCCB5";
 //const char * WIFI_PASSWORD = "7hfVacXZv4";  

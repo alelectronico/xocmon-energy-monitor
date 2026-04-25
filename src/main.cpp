@@ -1692,6 +1692,10 @@ for (int i = 0; i < 12; i++) {
 }
 //////////AQUI ACABA EL ENVIO DE DATOS. 
 
+if(sdReady){
+  escribirSD("/historial.csv", dataString); //Para guardar el historial. 
+}
+
   // 5. ACCIONES SEGÚN CONEXIÓN
   
 if (flag_online == 1) {
@@ -1714,6 +1718,7 @@ if (flag_online == 1) {
     // Si no hay internet
     if (sdReady) {
       escribirSD("/pendientes.csv", dataString);
+      Serial.println(">> SD: Sin conexión. Guardando en pendientes.");
       pendientes++; //Experimental. Ayuda a eficientar y que no lea linea por linea. 
     }
   }
@@ -1980,6 +1985,7 @@ void send_universal_log(String params_univ)
 
   http.begin(server); // Specify the URL and certificate
   delay(20);
+  http.setTimeout(5000); // Si hay mucha latencia o no logra conexión, que se salga y no deje el codigo congelado. 
 
   Serial.print(" http.server:");
   //esp_task_wdt_init(20, true); //enable panic so ESP32 restarts}
@@ -2027,6 +2033,7 @@ void send_universal_log(String params_univ)
 
     http.begin(server); // Specify the URL and certificate
     delay(20);
+    http.setTimeout(5000); // Si hay mucha latencia o no logra conexión, que se salga y no deje el codigo congelado. 
 
     Serial.print(" http.server:");
     // esp_task_wdt_init(20, true); //enable panic so ESP32 restarts}
@@ -2083,6 +2090,7 @@ void sendData(String params)
 
   http.begin(server); // Specify the URL and certificate
   delay(20);
+  http.setTimeout(5000); // Si hay mucha latencia o no logra conexión, que se salga y no deje el codigo congelado. 
 
   //Credenciales para la base de datos. 
     http.addHeader("apikey", apiKey);
@@ -2154,6 +2162,7 @@ Serial.println(">>> ENVIANDO... <<<");
 
     http.begin(server); // Specify the URL and certificate
     delay(20);
+    http.setTimeout(5000); // Si hay mucha latencia o no logra conexión, que se salga y no deje el codigo congelado. 
 
     http.addHeader("apikey", apiKey);
     http.addHeader("Authorization", "Bearer " + String(apiKey));
@@ -2700,6 +2709,7 @@ for (byte j = 0; j < 12; j++)
 
 void loop()
 {
+
   if (flag_online == 1)
   {
     looppublisher();

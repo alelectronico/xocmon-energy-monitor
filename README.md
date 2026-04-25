@@ -20,4 +20,4 @@ XOCmon is designed to monitor and analyze electrical consumption across multiple
 Laboratory testing phase of the XOCmon system, showing real-time data acquisition and database interaction.
 
 ![XOCmon Lab Test](Captura%20de%20pantalla%202026-04-14%20214426.png)
-![Dashboard](images/Demo_Dashboard.png)
+![Dashboard](Demo_Dashboard.png)
